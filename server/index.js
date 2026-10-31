@@ -48,8 +48,10 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Initialize MySQL database
-initDatabase().catch(console.error);
+// Initialize MySQL database (run on local server startup; skipped on serverless cold starts)
+if (!process.env.VERCEL) {
+  initDatabase().catch(console.error);
+}
 
 // -----------------------------------------------------------------------------
 // 1. PRODUCTS / MATERIALS API
