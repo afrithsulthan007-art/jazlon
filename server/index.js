@@ -740,7 +740,7 @@ app.post('/api/suppliers/:id/purchases', async (req, res) => {
     const tRate = Number(tds_rate || 0);
     const tds = subtotal * (tRate / 100);
     const freight = Number(freight_charges || 0);
-    const calculatedTotal = Math.round(subtotal + totalGst + freight - tds);
+    const calculatedTotal = Math.round(subtotal + totalGst + freight + tds);
     const totalAmount = total_amount !== undefined ? Math.round(Number(total_amount)) : calculatedTotal;
     const paid = Number(paid_amount || 0);
     const balance = Math.max(0, totalAmount - paid);
@@ -1096,7 +1096,8 @@ app.post('/api/bills', async (req, res) => {
     const tRate = Number(tds_rate || 0);
     const tdsAmount = (taxableAmount * tRate) / 100;
 
-    const totalAmount = Math.round(taxableAmount + gstTotal - tdsAmount);
+    const calculatedTotal = Math.round(taxableAmount + gstTotal + tdsAmount);
+    const totalAmount = req.body.total_amount !== undefined ? Math.round(Number(req.body.total_amount)) : calculatedTotal;
     const received = Number(amount_received || 0);
     const balanceDue = Math.max(0, totalAmount - received);
     const finalPaymentMode = received === 0 ? 'Credit' : (payment_mode || 'Cash');
@@ -1334,8 +1335,8 @@ app.get('/api/accounts', async (req, res) => {
       generalDateParams.push(from_date, to_date);
     }
 
-    // 1. Total Sales (Revenue summation of Total Bill Amount)
-    const salesRow = await db.prepare(`
+    // Parallel Execution of Core Queries for Blazing-Fast Performance
+    const salesPromise = db.prepare(`
       SELECT 
         COALESCE(SUM(total_amount), 0) as totalRevenue,
         COALESCE(SUM(subtotal), 0) as totalSubtotal,
@@ -1349,18 +1350,7 @@ app.get('/api/accounts', async (req, res) => {
       WHERE ${billFilter}
     `).get(...billParams);
 
-    // 2. Bought Price (Sum of all stocks / bought materials: quantity * respective bought rate from product page)
-    let stockBoughtQuery = 'SELECT COALESCE(SUM(stock_qty * default_bought_rate), 0) as totalStockBought FROM products';
-    const stockBoughtParams = [];
-    if (product && product !== 'All') {
-      stockBoughtQuery += ' WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))';
-      stockBoughtParams.push(product.trim());
-    }
-    const stockBoughtRow = await db.prepare(stockBoughtQuery).get(...stockBoughtParams);
-    const totalStockBought = stockBoughtRow.totalStockBought;
-
-    // Supplier purchases
-    const purchasesRow = await db.prepare(`
+    const purchasesPromise = db.prepare(`
       SELECT 
         COALESCE(SUM(total_amount), 0) as totalBoughtPrice,
         COALESCE(SUM(subtotal), 0) as totalPurchasesSubtotal,
@@ -1373,76 +1363,35 @@ app.get('/api/accounts', async (req, res) => {
       WHERE ${purchaseFilter}
     `).get(...purchaseParams);
 
-    // 3. Vehicle Expenses Breakdown
-    const vehDiesel = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM vehicle_expenses WHERE expense_type = 'Diesel' AND ${expenseFilter}
-    `).get(...generalDateParams))?.total || 0;
+    const vehExpPromise = db.prepare(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN expense_type = 'Diesel' THEN amount ELSE 0 END), 0) as diesel,
+        COALESCE(SUM(CASE WHEN expense_type = 'Service' THEN amount ELSE 0 END), 0) as service,
+        COALESCE(SUM(CASE WHEN expense_type = 'Other' THEN amount ELSE 0 END), 0) as other,
+        COALESCE(SUM(amount), 0) as total
+      FROM vehicle_expenses
+      WHERE ${expenseFilter}
+    `).get(...generalDateParams);
 
-    const vehService = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM vehicle_expenses WHERE expense_type = 'Service' AND ${expenseFilter}
-    `).get(...generalDateParams))?.total || 0;
-
-    const vehOther = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM vehicle_expenses WHERE expense_type = 'Other' AND ${expenseFilter}
-    `).get(...generalDateParams))?.total || 0;
-
-    // 4. Employee Salaries & Wages
-    const employeeSalaries = (await db.prepare(`
+    const salPromise = db.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE ${salaryFilter}
-    `).get(...generalDateParams))?.total || 0;
+    `).get(...generalDateParams);
 
-    // 5. Total Customer Credit Pending across all customers
-    const allPendingCredit = (await db.prepare('SELECT COALESCE(SUM(pending_credit), 0) as total FROM customers').get())?.total || 0;
-    // 6. Total Supplier Credit Pending across all suppliers
-    const allPendingSupplierCredit = (await db.prepare('SELECT COALESCE(SUM(pending_credit), 0) as total FROM suppliers').get())?.total || 0;
-    // 7. Total Employee Credit Balance pending
-    const allEmployeeCredit = (await db.prepare('SELECT COALESCE(SUM(current_credit_balance), 0) as total FROM employees').get())?.total || 0;
+    const creditsPromise = db.prepare(`
+      SELECT 
+        (SELECT COALESCE(SUM(pending_credit), 0) FROM customers) as pendingCredit,
+        (SELECT COALESCE(SUM(pending_credit), 0) FROM suppliers) as pendingSupplierCredit,
+        (SELECT COALESCE(SUM(current_credit_balance), 0) FROM employees) as employeeCredit
+    `).get();
 
-    // Financial calculations
-    // User Specification:
-    // Revenue generated = summation of Total Bill Amount over desired period
-    // Bought = summation of all stocks from product page (quantity in tons * respective bought rate)
-    // Net Profit = Revenue - Bought
-    const totalRevenue = salesRow.totalRevenue;
-    const costOfGoods = totalStockBought; // Bought price from stock inventory
-    const grossProfit = Math.round(totalRevenue - costOfGoods);
-
-    // Vehicle Charges (Diesel, Maintenance & Service, Other vehicle expenses)
-    const vehicleCharges = vehDiesel + vehService + vehOther;
-    const totalSalaries = employeeSalaries;
-    const totalOperatingExpenses = vehicleCharges + totalSalaries;
-
-    // Taxes Breakdown
-    const cgstOutput = salesRow.totalCgstOutput;
-    const sgstOutput = salesRow.totalSgstOutput;
-    const cgstInput = purchasesRow.totalCgstInput;
-    const sgstInput = purchasesRow.totalSgstInput;
-    const netCgstPayable = Math.max(0, cgstOutput - cgstInput);
-    const netSgstPayable = Math.max(0, sgstOutput - sgstInput);
-    const totalGstPayable = netCgstPayable + netSgstPayable;
-    const totalTds = salesRow.totalTdsOutput + purchasesRow.totalTdsInput;
-
-    // Deductions & Taxes
-    const cgstDeduction = netCgstPayable > 0 ? netCgstPayable : cgstOutput;
-    const sgstDeduction = netSgstPayable > 0 ? netSgstPayable : sgstOutput;
-    const tdsDeduction = totalTds;
-    const totalTaxes = cgstDeduction + sgstDeduction + tdsDeduction;
-
-    const totalDeductions = costOfGoods + cgstDeduction + sgstDeduction + tdsDeduction + vehicleCharges + totalSalaries;
-    // Net profit = Revenue - Bought (User Specification)
-    const netProfit = Math.round(totalRevenue - costOfGoods);
-    const netProfitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
-
-    // Recent Ledger Entries
-    const recentLedger = await db.prepare(`
+    const recentLedgerPromise = db.prepare(`
       SELECT * FROM accounts_ledger 
       WHERE ${ledgerFilter} 
       ORDER BY date DESC, id DESC 
       LIMIT 50
     `).all(...(from_date && to_date ? [from_date, to_date] : []));
 
-    // 1. Highest Selling Products
-    const topProducts = await db.prepare(`
+    const topProductsPromise = db.prepare(`
       SELECT 
         COALESCE(product_name, 'TMT Steel') as name,
         COALESCE(SUM(quantity), 0) as quantity,
@@ -1456,191 +1405,227 @@ app.get('/api/accounts', async (req, res) => {
       LIMIT 6
     `).all(...billParams);
 
-    // 2. Timeline Analytics (Adapted to Range: 1w, 30d, 3m, 6m, 1y, 5y, all)
-    let timelineType = 'monthly';
-    let timelinePoints = [];
-
-    if (range === '1w' || range === '30d') {
-      timelineType = 'daily';
-      const numDays = range === '1w' ? 7 : 30;
-      const salesByDay = await db.prepare(`
-        SELECT 
-          date,
-          COALESCE(SUM(total_amount), 0) as revenue,
-          COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
-          COALESCE(SUM(cgst_amount), 0) as cgst,
-          COALESCE(SUM(sgst_amount), 0) as sgst,
-          COALESCE(SUM(tds_amount), 0) as tds
-        FROM bills
-        WHERE date BETWEEN ? AND ?
-        GROUP BY date
-      `).all(from_date, to_date);
-      const salesMap = Object.fromEntries(salesByDay.map(s => [s.date, s]));
-
-      const vehByDay = Object.fromEntries((await db.prepare(`
-        SELECT date, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses WHERE date BETWEEN ? AND ? GROUP BY date
-      `).all(from_date, to_date)).map(v => [v.date, v.total]));
-
-      const salByDay = Object.fromEntries((await db.prepare(`
-        SELECT date, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE date BETWEEN ? AND ? GROUP BY date
-      `).all(from_date, to_date)).map(s => [s.date, s.total]));
-
-      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-      for (let i = numDays - 1; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const dayStr = formatDateStr(d);
-        const s = salesMap[dayStr] || { revenue: 0, cost: 0, cgst: 0, sgst: 0, tds: 0 };
-        const vExp = vehByDay[dayStr] || 0;
-        const sExp = salByDay[dayStr] || 0;
-        const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp;
-        const profit = Math.round(s.revenue - deductions);
-
-        const label = numDays === 7
-          ? `${dayNames[d.getDay()]} ${d.getDate()}`
-          : `${d.getDate()} ${mNames[d.getMonth()]}`;
-
-        timelinePoints.push({
-          key: dayStr,
-          label,
-          revenue: s.revenue,
-          profit
-        });
-      }
-    } else if (range === '5y') {
-      timelineType = 'yearly';
-      const currentYear = new Date().getFullYear();
-      const salesByYear = await db.prepare(`
-        SELECT 
-          strftime('%Y', date) as year,
-          COALESCE(SUM(total_amount), 0) as revenue,
-          COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
-          COALESCE(SUM(cgst_amount), 0) as cgst,
-          COALESCE(SUM(sgst_amount), 0) as sgst,
-          COALESCE(SUM(tds_amount), 0) as tds
-        FROM bills
-        GROUP BY strftime('%Y', date)
-      `).all();
-      const salesMap = Object.fromEntries(salesByYear.map(s => [s.year, s]));
-
-      const vehByYear = Object.fromEntries((await db.prepare(`
-        SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses GROUP BY strftime('%Y', date)
-      `).all()).map(v => [v.year, v.total]));
-
-      const salByYear = Object.fromEntries((await db.prepare(`
-        SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM employee_payments GROUP BY strftime('%Y', date)
-      `).all()).map(s => [s.year, s.total]));
-
-      for (let y = currentYear - 4; y <= currentYear; y++) {
-        const yStr = String(y);
-        const s = salesMap[yStr] || { revenue: 0, cost: 0, cgst: 0, sgst: 0, tds: 0 };
-        const vExp = vehByYear[yStr] || 0;
-        const sExp = salByYear[yStr] || 0;
-        const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp;
-        const profit = Math.round(s.revenue - deductions);
-
-        timelinePoints.push({
-          key: yStr,
-          label: yStr,
-          revenue: s.revenue,
-          profit
-        });
-      }
-    } else {
-      // 3m, 6m, 1y, all (Monthly granularity)
-      timelineType = 'monthly';
-      let numMonths = 6;
-      if (range === '3m') numMonths = 3;
-      else if (range === '1y') numMonths = 12;
-      else if (range === 'all') numMonths = 6;
-
-      const salesByMonth = await db.prepare(`
-        SELECT 
-          strftime('%Y-%m', date) as month,
-          COALESCE(SUM(total_amount), 0) as revenue,
-          COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
-          COALESCE(SUM(cgst_amount), 0) as cgst,
-          COALESCE(SUM(sgst_amount), 0) as sgst,
-          COALESCE(SUM(tds_amount), 0) as tds
-        FROM bills
-        GROUP BY strftime('%Y-%m', date)
-      `).all();
-      const salesMap = Object.fromEntries(salesByMonth.map(s => [s.month, s]));
-
-      const vehByMonth = Object.fromEntries((await db.prepare(`
-        SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses GROUP BY strftime('%Y-%m', date)
-      `).all()).map(v => [v.month, v.total]));
-
-      const salByMonth = Object.fromEntries((await db.prepare(`
-        SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM employee_payments GROUP BY strftime('%Y-%m', date)
-      `).all()).map(s => [s.month, s.total]));
-
-      const now = new Date();
-      const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-      for (let i = numMonths - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const s = salesMap[mKey] || { revenue: 0, cost: 0, cgst: 0, sgst: 0, tds: 0 };
-        const vExp = vehByMonth[mKey] || 0;
-        const sExp = salByMonth[mKey] || 0;
-        const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp;
-        const profit = Math.round(s.revenue - deductions);
-
-        timelinePoints.push({
-          key: mKey,
-          label: `${mNames[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`,
-          revenue: s.revenue,
-          profit
-        });
-      }
-    }
-
-    const timelineAnalytics = {
-      type: timelineType,
-      range: range || 'all',
-      points: timelinePoints
-    };
-
-    // 3. Collections Breakdown (Cash, UPI, Bank Transfer, Total Credit)
-    const cashFromBills = (await db.prepare(`
-      SELECT COALESCE(SUM(amount_received), 0) as total FROM bills WHERE payment_mode = 'Cash' AND ${billFilter}
-    `).get(...billParams))?.total || 0;
-
-    const upiFromBills = (await db.prepare(`
-      SELECT COALESCE(SUM(amount_received), 0) as total FROM bills WHERE payment_mode = 'UPI' AND ${billFilter}
-    `).get(...billParams))?.total || 0;
-
-    const bankFromBills = (await db.prepare(`
-      SELECT COALESCE(SUM(amount_received), 0) as total FROM bills WHERE payment_mode IN ('Bank Transfer', 'NEFT', 'Cheque') AND ${billFilter}
-    `).get(...billParams))?.total || 0;
+    const billColPromise = db.prepare(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN payment_mode = 'Cash' THEN amount_received ELSE 0 END), 0) as cash,
+        COALESCE(SUM(CASE WHEN payment_mode = 'UPI' THEN amount_received ELSE 0 END), 0) as upi,
+        COALESCE(SUM(CASE WHEN payment_mode IN ('Bank Transfer', 'NEFT', 'Cheque') THEN amount_received ELSE 0 END), 0) as bank,
+        COALESCE(SUM(balance_due), 0) as billCreditPeriod
+      FROM bills
+      WHERE ${billFilter}
+    `).get(...billParams);
 
     let custPayFilter = '1=1';
     if (from_date && to_date) custPayFilter = 'date BETWEEN ? AND ?';
+    const custColPromise = db.prepare(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN payment_mode = 'Cash' THEN amount ELSE 0 END), 0) as cash,
+        COALESCE(SUM(CASE WHEN payment_mode = 'UPI' THEN amount ELSE 0 END), 0) as upi,
+        COALESCE(SUM(CASE WHEN payment_mode IN ('Bank Transfer', 'NEFT', 'Cheque') THEN amount ELSE 0 END), 0) as bank
+      FROM customer_payments
+      WHERE ${custPayFilter}
+    `).get(...(from_date && to_date ? [from_date, to_date] : []));
 
-    const cashFromCust = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM customer_payments WHERE payment_mode = 'Cash' AND ${custPayFilter}
-    `).get(...(from_date && to_date ? [from_date, to_date] : [])))?.total || 0;
+    // Timeline Analytics (Parallelized)
+    const timelinePromise = (async () => {
+      let timelineType = 'monthly';
+      let timelinePoints = [];
 
-    const upiFromCust = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM customer_payments WHERE payment_mode = 'UPI' AND ${custPayFilter}
-    `).get(...(from_date && to_date ? [from_date, to_date] : [])))?.total || 0;
+      if (range === '1w' || range === '30d') {
+        timelineType = 'daily';
+        const numDays = range === '1w' ? 7 : 30;
+        const [salesByDay, vehByDay, salByDay] = await Promise.all([
+          db.prepare(`
+            SELECT 
+              date,
+              COALESCE(SUM(total_amount), 0) as revenue,
+              COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
+              COALESCE(SUM(cgst_amount), 0) as cgst,
+              COALESCE(SUM(sgst_amount), 0) as sgst,
+              COALESCE(SUM(tds_amount), 0) as tds
+            FROM bills
+            WHERE date BETWEEN ? AND ?
+            GROUP BY date
+          `).all(from_date, to_date),
+          db.prepare(`
+            SELECT date, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses WHERE date BETWEEN ? AND ? GROUP BY date
+          `).all(from_date, to_date),
+          db.prepare(`
+            SELECT date, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE date BETWEEN ? AND ? GROUP BY date
+          `).all(from_date, to_date)
+        ]);
+        const salesMap = Object.fromEntries((salesByDay || []).map(s => [s.date, s]));
+        const vehMap = Object.fromEntries((vehByDay || []).map(v => [v.date, v.total]));
+        const salMap = Object.fromEntries((salByDay || []).map(s => [s.date, s.total]));
 
-    const bankFromCust = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM customer_payments WHERE payment_mode IN ('Bank Transfer', 'NEFT', 'Cheque') AND ${custPayFilter}
-    `).get(...(from_date && to_date ? [from_date, to_date] : [])))?.total || 0;
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    const totalCash = cashFromBills + cashFromCust;
-    const totalUpi = upiFromBills + upiFromCust;
-    const totalBank = bankFromBills + bankFromCust;
+        for (let i = numDays - 1; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const dayStr = formatDateStr(d);
+          const s = salesMap[dayStr] || { revenue: 0, cost: 0, cgst: 0, sgst: 0, tds: 0 };
+          const vExp = vehMap[dayStr] || 0;
+          const sExp = salMap[dayStr] || 0;
+          const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp;
+          const profit = Math.round(s.revenue - deductions);
+          const label = numDays === 7
+            ? `${dayNames[d.getDay()]} ${d.getDate()}`
+            : `${d.getDate()} ${mNames[d.getMonth()]}`;
+
+          timelinePoints.push({ key: dayStr, label, revenue: s.revenue, profit });
+        }
+      } else if (range === '5y') {
+        timelineType = 'yearly';
+        const currentYear = new Date().getFullYear();
+        const [salesByYear, vehByYear, salByYear] = await Promise.all([
+          db.prepare(`
+            SELECT 
+              strftime('%Y', date) as year,
+              COALESCE(SUM(total_amount), 0) as revenue,
+              COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
+              COALESCE(SUM(cgst_amount), 0) as cgst,
+              COALESCE(SUM(sgst_amount), 0) as sgst,
+              COALESCE(SUM(tds_amount), 0) as tds
+            FROM bills
+            GROUP BY strftime('%Y', date)
+          `).all(),
+          db.prepare(`
+            SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses GROUP BY strftime('%Y', date)
+          `).all(),
+          db.prepare(`
+            SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM employee_payments GROUP BY strftime('%Y', date)
+          `).all()
+        ]);
+        const salesMap = Object.fromEntries((salesByYear || []).map(s => [s.year, s]));
+        const vehMap = Object.fromEntries((vehByYear || []).map(v => [v.year, v.total]));
+        const salMap = Object.fromEntries((salByYear || []).map(s => [s.year, s.total]));
+
+        for (let y = currentYear - 4; y <= currentYear; y++) {
+          const yStr = String(y);
+          const s = salesMap[yStr] || { revenue: 0, cost: 0, cgst: 0, sgst: 0, tds: 0 };
+          const vExp = vehMap[yStr] || 0;
+          const sExp = salMap[yStr] || 0;
+          const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp;
+          const profit = Math.round(s.revenue - deductions);
+          timelinePoints.push({ key: yStr, label: yStr, revenue: s.revenue, profit });
+        }
+      } else {
+        timelineType = 'monthly';
+        let numMonths = 6;
+        if (range === '3m') numMonths = 3;
+        else if (range === '1y') numMonths = 12;
+        else if (range === 'all') numMonths = 6;
+
+        const [salesByMonth, vehByMonth, salByMonth] = await Promise.all([
+          db.prepare(`
+            SELECT 
+              strftime('%Y-%m', date) as month,
+              COALESCE(SUM(total_amount), 0) as revenue,
+              COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
+              COALESCE(SUM(cgst_amount), 0) as cgst,
+              COALESCE(SUM(sgst_amount), 0) as sgst,
+              COALESCE(SUM(tds_amount), 0) as tds
+            FROM bills
+            GROUP BY strftime('%Y-%m', date)
+          `).all(),
+          db.prepare(`
+            SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses GROUP BY strftime('%Y-%m', date)
+          `).all(),
+          db.prepare(`
+            SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM employee_payments GROUP BY strftime('%Y-%m', date)
+          `).all()
+        ]);
+        const salesMap = Object.fromEntries((salesByMonth || []).map(s => [s.month, s]));
+        const vehMap = Object.fromEntries((vehByMonth || []).map(v => [v.month, v.total]));
+        const salMap = Object.fromEntries((salByMonth || []).map(s => [s.month, s.total]));
+
+        const now = new Date();
+        const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        for (let i = numMonths - 1; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          const s = salesMap[mKey] || { revenue: 0, cost: 0, cgst: 0, sgst: 0, tds: 0 };
+          const vExp = vehMap[mKey] || 0;
+          const sExp = salMap[mKey] || 0;
+          const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp;
+          const profit = Math.round(s.revenue - deductions);
+          timelinePoints.push({
+            key: mKey,
+            label: `${mNames[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`,
+            revenue: s.revenue,
+            profit
+          });
+        }
+      }
+      return { type: timelineType, points: timelinePoints };
+    })();
+
+    // Await all parallel queries together
+    const [
+      salesRow,
+      purchasesRow,
+      vehExpRow,
+      salRow,
+      creditsRow,
+      recentLedger,
+      topProducts,
+      billColRow,
+      custColRow,
+      timelineResult
+    ] = await Promise.all([
+      salesPromise,
+      purchasesPromise,
+      vehExpPromise,
+      salPromise,
+      creditsPromise,
+      recentLedgerPromise,
+      topProductsPromise,
+      billColPromise,
+      custColPromise,
+      timelinePromise
+    ]);
+
+    // Financial calculations adhering to user's exact specification:
+    // Net Profit = Σ(total bill amount) - Σ(tds + cgst + sgst + bought in price + salary of employees + diesel)
+    const totalRevenue = Number(salesRow?.totalRevenue || 0);
+    const costOfGoods = Number(salesRow?.costOfSoldGoods || 0); // Bought in price of sold materials
+    const cgstOutput = Number(salesRow?.totalCgstOutput || 0);
+    const sgstOutput = Number(salesRow?.totalSgstOutput || 0);
+    const tdsOutput = Number(salesRow?.totalTdsOutput || 0);
+
+    const cgstInput = Number(purchasesRow?.totalCgstInput || 0);
+    const sgstInput = Number(purchasesRow?.totalSgstInput || 0);
+    const tdsInput = Number(purchasesRow?.totalTdsInput || 0);
+    const netCgstPayable = Math.max(0, cgstOutput - cgstInput);
+    const netSgstPayable = Math.max(0, sgstOutput - sgstInput);
+    const totalGstPayable = netCgstPayable + netSgstPayable;
+    const totalTds = tdsOutput;
+
+    const vehDiesel = Number(vehExpRow?.diesel || 0);
+    const vehService = Number(vehExpRow?.service || 0);
+    const vehOther = Number(vehExpRow?.other || 0);
+    const vehicleCharges = Number(vehExpRow?.total || 0);
+    const totalSalaries = Number(salRow?.total || 0);
+    const totalOperatingExpenses = vehicleCharges + totalSalaries;
+
+    // Exact formula: Σ(total bill amount) - Σ(tds + cgst + sgst + bought in price + salary of employees + diesel)
+    const totalDeductions = Math.round(tdsOutput + cgstOutput + sgstOutput + costOfGoods + totalSalaries + vehDiesel);
+    const netProfit = Math.round(totalRevenue - totalDeductions);
+    const netProfitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
+    const grossProfit = Math.round(totalRevenue - costOfGoods);
+
+    // Collections
+    const totalCash = Number(billColRow?.cash || 0) + Number(custColRow?.cash || 0);
+    const totalUpi = Number(billColRow?.upi || 0) + Number(custColRow?.upi || 0);
+    const totalBank = Number(billColRow?.bank || 0) + Number(custColRow?.bank || 0);
     const totalCollected = totalCash + totalUpi + totalBank;
-
-    // Credit from bills in period, plus overall customer dues
-    const billCreditPeriod = (await db.prepare(`
-      SELECT COALESCE(SUM(balance_due), 0) as total FROM bills WHERE ${billFilter}
-    `).get(...billParams))?.total || 0;
+    const allPendingCredit = Number(creditsRow?.pendingCredit || 0);
+    const allPendingSupplierCredit = Number(creditsRow?.pendingSupplierCredit || 0);
+    const allEmployeeCredit = Number(creditsRow?.employeeCredit || 0);
+    const billCreditPeriod = Number(billColRow?.billCreditPeriod || 0);
 
     const collections = {
       cash: totalCash,
@@ -1658,11 +1643,12 @@ app.get('/api/accounts', async (req, res) => {
         boughtPrice: costOfGoods,
         grossProfit,
         grossProfitMargin: totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : 0,
-        cgst: cgstDeduction,
-        sgst: sgstDeduction,
-        tds: tdsDeduction,
-        totalTaxes,
+        cgst: cgstOutput,
+        sgst: sgstOutput,
+        tds: tdsOutput,
+        totalTaxes: cgstOutput + sgstOutput + tdsOutput,
         vehicleCharges,
+        diesel: vehDiesel,
         employeeSalaries: totalSalaries,
         totalDeductions,
         operatingExpenses: {
@@ -1691,8 +1677,12 @@ app.get('/api/accounts', async (req, res) => {
         employeeDues: allEmployeeCredit
       },
       topProducts,
-      monthlyAnalytics: timelinePoints,
-      timelineAnalytics,
+      monthlyAnalytics: timelineResult.points,
+      timelineAnalytics: {
+        type: timelineResult.type,
+        range: range || 'all',
+        points: timelineResult.points
+      },
       collections,
       recentLedger
     });

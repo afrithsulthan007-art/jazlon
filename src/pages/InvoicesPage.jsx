@@ -203,7 +203,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
         : Math.round((beforeTax * (Number(b.tds_rate) || 2)) / 100);
       const cgstVal = Number(b.cgst_amount) || Math.round((beforeTax * 0.09));
       const sgstVal = Number(b.sgst_amount) || Math.round((beforeTax * 0.09));
-      const totalAmt = Number(b.total_amount) || (beforeTax + cgstVal + sgstVal - tdsVal);
+      const totalAmt = Number(b.total_amount) || (beforeTax + cgstVal + sgstVal + tdsVal);
 
       // Bought cost extracted from product catalog & profit: total bill amount - (tds + cgst + sgst + bought cost)
       const catalogRate = getCatalogBoughtRate(b);
@@ -657,7 +657,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                     : Math.round((beforeTax * (Number(bill.tds_rate) || 2)) / 100);
                   const cgstVal = Number(bill.cgst_amount) || Math.round((beforeTax * 0.09));
                   const sgstVal = Number(bill.sgst_amount) || Math.round((beforeTax * 0.09));
-                  const totalAmt = Number(bill.total_amount) || (beforeTax + cgstVal + sgstVal - tdsVal);
+                  const totalAmt = Number(bill.total_amount) || (beforeTax + cgstVal + sgstVal + tdsVal);
 
                   // Individual invoice profit: total bill amount - (tds + cgst + sgst + bought cost)
                   const invoiceProfit = Math.round(totalAmt - (tdsVal + cgstVal + sgstVal + totalBoughtCost));

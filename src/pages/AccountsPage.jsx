@@ -437,8 +437,10 @@ export default function AccountsPage({ onAccountUpdated }) {
   const employeeSalaries = summary.employeeSalaries !== undefined ? summary.employeeSalaries : (operatingExpenses.employeeSalaries || 0);
   const totalOpExpenses = operatingExpenses.total !== undefined ? operatingExpenses.total : (vehicleCharges + employeeSalaries);
   
-  // User Formula: Revenue - Bought = Net Profit
-  const netProfit = summary.netProfit !== undefined ? summary.netProfit : Math.round(totalRevenue - costOfGoods);
+  const diesel = operatingExpenses.diesel || summary.diesel || 0;
+  // User Formula: Σ(total bill amount) - Σ(tds + cgst + sgst + bought in price + salary of employees + diesel)
+  const totalDeductions = summary.totalDeductions !== undefined ? summary.totalDeductions : Math.round(tds + cgst + sgst + costOfGoods + employeeSalaries + diesel);
+  const netProfit = summary.netProfit !== undefined ? summary.netProfit : Math.round(totalRevenue - totalDeductions);
   const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
 
   // Analytics & Graph Data
@@ -792,7 +794,7 @@ export default function AccountsPage({ onAccountUpdated }) {
             ₹{netProfit.toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '10px', color: netProfit >= 0 ? '#166534' : '#991b1b', marginTop: '2px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Revenue − Bought
+            Σ(Bills) − Σ(Deductions)
           </div>
         </div>
 

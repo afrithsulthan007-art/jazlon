@@ -168,7 +168,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
   const tdsRate = tdsEnabled ? 2 : 0;
   const tdsAmount = Math.round((taxableBase * tdsRate) / 100);
 
-  const calculatedTotal = Math.round(taxableBase + totalGstAmount - tdsAmount);
+  const calculatedTotal = Math.round(taxableBase + totalGstAmount + tdsAmount);
   const effectiveTotal = isManualTotal && manualTotalAmount ? Number(manualTotalAmount) : calculatedTotal;
 
   // Auto-fill paid amount when total changes if paid amount was matching previous total or empty
@@ -230,6 +230,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
           rent_transport: rentVal,
           gst_rate: totalGstRate,
           tds_rate: tdsRate,
+          total_amount: effectiveTotal,
           amount_received: paidNum,
           payment_mode: paidNum === 0 ? 'Credit' : paymentMode,
           notes: notes.trim(),
@@ -569,7 +570,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                     TDS (2%) <span style={{ fontSize: '10px', color: tdsEnabled ? '#059669' : '#83998c' }}>{tdsEnabled ? 'YES' : 'NO'}</span>
                   </div>
                   <div style={{ fontSize: '10px', color: '#52665a', fontFamily: 'monospace' }}>
-                    {tdsEnabled ? `-₹${tdsAmount.toLocaleString('en-IN')}` : '₹0'}
+                    {tdsEnabled ? `+₹${tdsAmount.toLocaleString('en-IN')}` : '₹0'}
                   </div>
                 </div>
               </div>
@@ -1055,7 +1056,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                     : Math.round((beforeTax * (Number(b.tds_rate) || 2)) / 100);
                   const cgstVal = Number(b.cgst_amount) || Math.round((beforeTax * 0.09));
                   const sgstVal = Number(b.sgst_amount) || Math.round((beforeTax * 0.09));
-                  const totalAmt = Number(b.total_amount) || (beforeTax + cgstVal + sgstVal - tdsVal);
+                  const totalAmt = Number(b.total_amount) || (beforeTax + cgstVal + sgstVal + tdsVal);
 
                   // Individual invoice profit: total bill amount - (tds + cgst + sgst + bought cost)
                   const invoiceProfit = Math.round(totalAmt - (tdsVal + cgstVal + sgstVal + totalBoughtCost));
