@@ -1732,9 +1732,11 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[Jazlan Server] Billing & Accounts API running on http://127.0.0.1:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Jazlan Server] Billing & Accounts API running on http://127.0.0.1:${PORT}`);
+  });
+}
 
 module.exports = app;
 
