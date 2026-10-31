@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const {
   db,
+  pool,
   initDatabase,
   getNextBillNumber,
   recalculateCustomer,
@@ -15,6 +16,37 @@ const PORT = process.env.PORT || 5001;
 
 app.use(cors());
 app.use(express.json());
+
+// Health & Database Diagnostics API
+app.get('/api/health', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT 1 + 1 as ping');
+    const [prodCount] = await pool.query('SELECT COUNT(*) as count FROM products');
+    const [custCount] = await pool.query('SELECT COUNT(*) as count FROM customers');
+    const [billCount] = await pool.query('SELECT COUNT(*) as count FROM bills');
+    res.json({
+      status: 'ok',
+      database: 'connected',
+      host: process.env.DB_HOST || 'srv2203.hstgr.io',
+      database_name: process.env.DB_NAME || 'u530686607_jaslon',
+      user: process.env.DB_USER || 'u530686607_jaslon',
+      counts: {
+        products: prodCount[0].count,
+        customers: custCount[0].count,
+        bills: billCount[0].count
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      database: 'disconnected',
+      error: err.message,
+      code: err.code,
+      host: process.env.DB_HOST || 'srv2203.hstgr.io',
+      user: process.env.DB_USER || 'u530686607_jaslon'
+    });
+  }
+});
 
 // Initialize MySQL database
 initDatabase().catch(console.error);
