@@ -41,14 +41,14 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
   const [customerGstin, setCustomerGstin] = useState('');
 
   // Quantity & Rate
-  const [kg, setKg] = useState(3000);
-  const [ratePerTon, setRatePerTon] = useState(54500);
-  const [boughtPricePerUnit, setBoughtPricePerUnit] = useState(49000);
+  const [kg, setKg] = useState('');
+  const [ratePerTon, setRatePerTon] = useState('');
+  const [boughtPricePerUnit, setBoughtPricePerUnit] = useState(0);
 
   // Settlement & Payment
   const [isManualTotal, setIsManualTotal] = useState(false);
   const [manualTotalAmount, setManualTotalAmount] = useState('');
-  const [paidAmount, setPaidAmount] = useState('');
+  const [paidAmount, setPaidAmount] = useState(0);
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [previousActiveMode, setPreviousActiveMode] = useState('Cash');
@@ -96,14 +96,6 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
       setVehicles(vehRes || []);
       setCustomers(custRes || []);
       setRecentBills(billsRes?.slice(0, 5) || []);
-
-      if (prodRes && prodRes.length > 0 && !productId) {
-        const first = prodRes[0];
-        setProductId(first.id);
-        setProductName(first.name);
-        setRatePerTon(first.default_sell_rate || 54500);
-        setBoughtPricePerUnit(first.default_bought_rate || 49000);
-      }
     } catch (err) {
       console.error('Error loading form data:', err);
     } finally {
@@ -130,12 +122,24 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
 
   // Handle Product Selection
   const handleSelectProduct = (id) => {
+    if (!id) {
+      setProductId('');
+      setProductName('');
+      setRatePerTon('');
+      setBoughtPricePerUnit(0);
+      setKg('');
+      setPaidAmount(0);
+      return;
+    }
     setProductId(id);
     const prod = products.find(p => String(p.id) === String(id));
     if (prod) {
       setProductName(prod.name);
-      setRatePerTon(prod.default_sell_rate || 54500);
-      setBoughtPricePerUnit(prod.default_bought_rate || 49000);
+      setRatePerTon(prod.default_sell_rate || '');
+      setBoughtPricePerUnit(prod.default_bought_rate || 0);
+      if (!kg || Number(kg) === 0) {
+        setKg(1000);
+      }
     }
   };
 
@@ -151,39 +155,48 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
   };
 
   // Live Metric Calculations
-  const netKg = Number(kg || 0);
+  const hasProduct = Boolean(productId || productName.trim());
+
+  const netKg = hasProduct ? Number(kg || 0) : 0;
   const tons = netKg / 1000;
-  const rateVal = Number(ratePerTon || 0);
-  const subtotal = Math.round(tons * rateVal);
-  const rentVal = Number(rentTransport || 0);
+  const rateVal = hasProduct ? Number(ratePerTon || 0) : 0;
+  const subtotal = hasProduct ? Math.round(tons * rateVal) : 0;
+  const rentVal = hasProduct ? Number(rentTransport || 0) : 0;
   const taxableBase = subtotal + rentVal;
 
   const cgstRate = cgstEnabled ? 9 : 0;
   const sgstRate = sgstEnabled ? 9 : 0;
   const totalGstRate = cgstRate + sgstRate;
-  const cgstAmount = Math.round((taxableBase * cgstRate) / 100);
-  const sgstAmount = Math.round((taxableBase * sgstRate) / 100);
+  const cgstAmount = hasProduct ? Math.round((taxableBase * cgstRate) / 100) : 0;
+  const sgstAmount = hasProduct ? Math.round((taxableBase * sgstRate) / 100) : 0;
   const totalGstAmount = cgstAmount + sgstAmount;
 
   const tdsRate = tdsEnabled ? 2 : 0;
-  const tdsAmount = Math.round((taxableBase * tdsRate) / 100);
+  const tdsAmount = hasProduct ? Math.round((taxableBase * tdsRate) / 100) : 0;
 
-  const calculatedTotal = Math.round(taxableBase + totalGstAmount + tdsAmount);
-  const effectiveTotal = isManualTotal && manualTotalAmount ? Number(manualTotalAmount) : calculatedTotal;
+  const calculatedTotal = hasProduct ? Math.round(taxableBase + totalGstAmount + tdsAmount) : 0;
+  const effectiveTotal = hasProduct
+    ? (isManualTotal && manualTotalAmount ? Number(manualTotalAmount) : calculatedTotal)
+    : 0;
 
   // Auto-fill paid amount when total changes if paid amount was matching previous total or empty
   useEffect(() => {
-    if (paidAmount === '' || Number(paidAmount) === calculatedTotal) {
-      setPaidAmount(effectiveTotal);
+    if (!hasProduct) {
+      setPaidAmount(0);
+    } else {
+      if (paidAmount === '' || paidAmount === 0 || Number(paidAmount) === calculatedTotal) {
+        setPaidAmount(effectiveTotal);
+      }
     }
-  }, [effectiveTotal]);
+  }, [hasProduct, effectiveTotal]);
 
   const paidNum = paidAmount === '' ? 0 : Number(paidAmount);
   const remainingCreditDue = Math.max(0, effectiveTotal - paidNum);
-  const isZeroPaid = paidAmount !== '' && Number(paidAmount) === 0;
+  const isZeroPaid = hasProduct && paidAmount !== '' && Number(paidAmount) === 0;
 
   // Automatic Credit mode when paid amount is 0; restore payment mode when > 0
   useEffect(() => {
+    if (!hasProduct) return;
     if (isZeroPaid) {
       if (paymentMode !== 'Credit') {
         setPreviousActiveMode(paymentMode);
@@ -194,17 +207,21 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
         setPaymentMode(previousActiveMode && previousActiveMode !== 'Credit' ? previousActiveMode : 'Cash');
       }
     }
-  }, [paidAmount, isZeroPaid]);
+  }, [paidAmount, isZeroPaid, hasProduct]);
 
   // Handle Form Submit
   const handleSubmitBill = async (e) => {
     e.preventDefault();
+    if (!hasProduct) {
+      alert('Please select a product first.');
+      return;
+    }
     if (!customerName.trim()) {
       alert('Please enter or select a customer name.');
       return;
     }
-    if (!productName.trim() || netKg <= 0 || rateVal <= 0) {
-      alert('Please enter valid product, weight in kg, and rate per ton.');
+    if (netKg <= 0 || rateVal <= 0) {
+      alert('Please enter valid weight in kg and rate per ton.');
       return;
     }
 
@@ -230,7 +247,6 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
           rent_transport: rentVal,
           gst_rate: totalGstRate,
           tds_rate: tdsRate,
-          total_amount: effectiveTotal,
           amount_received: paidNum,
           payment_mode: paidNum === 0 ? 'Credit' : paymentMode,
           notes: notes.trim(),
@@ -256,6 +272,8 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
   };
 
   const handleReset = () => {
+    setProductId('');
+    setProductName('');
     setCustomerName('');
     setCustomerPhone('');
     setCustomerAddress('');
@@ -263,7 +281,10 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
     setVehicleId('');
     setVehicleNumber('');
     setDriverName('');
-    setKg(3000);
+    setKg('');
+    setRatePerTon('');
+    setBoughtPricePerUnit(0);
+    setPaidAmount(0);
     setRentTransport(0);
     setCgstEnabled(true);
     setSgstEnabled(true);
@@ -720,6 +741,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                   style={{ height: '26px', fontSize: '12.5px' }}
                   value={kg}
                   onChange={(e) => setKg(e.target.value)}
+                  placeholder="0"
                   required
                 />
               </div>
@@ -734,6 +756,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                   style={{ height: '26px', fontSize: '12.5px', color: '#059669', borderColor: '#a7f3d0' }}
                   value={ratePerTon}
                   onChange={(e) => setRatePerTon(e.target.value)}
+                  placeholder="0"
                   required
                 />
               </div>
@@ -940,7 +963,11 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
           {/* SUBMIT BUTTON ROW */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #edf2ee', flexWrap: 'wrap', gap: '8px' }}>
             <div style={{ fontSize: '11.5px', color: '#52665a' }}>
-              {remainingCreditDue > 0 ? (
+              {!hasProduct ? (
+                <span style={{ color: '#64748b', fontWeight: 600 }}>
+                  Please select a product to calculate bill amount.
+                </span>
+              ) : remainingCreditDue > 0 ? (
                 <span style={{ color: '#dc2626', fontWeight: 700 }}>
                   ⚠️ Outstanding ₹{remainingCreditDue.toLocaleString('en-IN')} will be recorded under Credit Customers.
                 </span>

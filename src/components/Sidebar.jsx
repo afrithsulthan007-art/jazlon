@@ -59,11 +59,7 @@ export default function Sidebar({ activePage, setActivePage, counts = {} }) {
         })}
       </nav>
 
-      <div className="sidebar-footer">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 8px rgba(16, 185, 129, 0.6)' }}></div>
-          <span style={{ fontWeight: 600, color: '#334155' }}>Hostinger MySQL</span>
-        </div>
+      <div className="sidebar-footer" style={{ justifyContent: 'center' }}>
         <span style={{ fontSize: '11px', color: '#94a3b8' }}>v1.0.0</span>
       </div>
     </aside>

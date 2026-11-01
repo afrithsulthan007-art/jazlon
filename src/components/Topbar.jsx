@@ -1,7 +1,7 @@
 import React from 'react';
-import { PlusCircle, Search, RefreshCw, Database } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 
-export default function Topbar({ activePage, setActivePage, onRefresh, nextBillNo }) {
+export default function Topbar({ activePage, setActivePage, nextBillNo }) {
   const pageTitles = {
     billing: 'Billing Terminal',
     invoices: 'Invoices & Bills Register',
@@ -27,7 +27,7 @@ export default function Topbar({ activePage, setActivePage, onRefresh, nextBillN
 
       <div className="topbar-actions">
         {activePage !== 'billing' && (
-          <button 
+          <button
             className="btn btn-primary btn-sm"
             onClick={() => setActivePage('billing')}
           >
@@ -35,20 +35,6 @@ export default function Topbar({ activePage, setActivePage, onRefresh, nextBillN
             New Bill
           </button>
         )}
-
-        <button 
-          className="btn btn-secondary btn-sm"
-          onClick={onRefresh}
-          title="Refresh Data"
-        >
-          <RefreshCw size={14} />
-          Sync
-        </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', backgroundColor: '#f0fdf4', border: '1px solid #d1fae5', borderRadius: '6px', fontSize: '12px', fontWeight: 700, color: '#065f46' }}>
-          <Database size={14} color="#059669" />
-          <span>Hostinger MySQL</span>
-        </div>
       </div>
     </header>
   );

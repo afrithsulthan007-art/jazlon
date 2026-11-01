@@ -251,10 +251,11 @@ async function initMySQL(config) {
 if (require.main === module) {
   require('dotenv').config();
   initMySQL({
-    host: process.env.DB_HOST || 'srv2203.hstgr.io',
-    user: process.env.DB_USER || 'u530686607_jaslon',
-    password: process.env.DB_PASSWORD || 'Jaslon@123',
-    database: process.env.DB_NAME || 'u530686607_jaslon'
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: Number(process.env.DB_PORT) || 3306
   }).catch(err => {
     console.error('Migration error:', err);
     process.exit(1);

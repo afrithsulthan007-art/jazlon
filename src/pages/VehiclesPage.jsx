@@ -962,7 +962,7 @@ export default function VehiclesPage({ onVehicleUpdated }) {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '18px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                     Model / Type
@@ -994,36 +994,6 @@ export default function VehiclesPage({ onVehicleUpdated }) {
                     value={vehCapacity}
                     onChange={(e) => setVehCapacity(e.target.value)}
                     required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Default Driver
-                  </label>
-                  <input 
-                    type="text"
-                    className="form-input"
-                    style={{ height: '36px', fontSize: '12.5px', borderRadius: '7px', border: '1.5px solid #cbd5e1', width: '100%', padding: '0 10px' }}
-                    placeholder="Driver name"
-                    value={vehDriver}
-                    onChange={(e) => setVehDriver(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                    Driver Phone
-                  </label>
-                  <input 
-                    type="text"
-                    className="form-input"
-                    style={{ height: '36px', fontSize: '12.5px', borderRadius: '7px', border: '1.5px solid #cbd5e1', width: '100%', padding: '0 10px' }}
-                    placeholder="Mobile number"
-                    value={vehPhone}
-                    onChange={(e) => setVehPhone(e.target.value)}
                   />
                 </div>
               </div>
