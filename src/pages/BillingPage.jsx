@@ -17,6 +17,7 @@ import {
   Printer,
   Eye,
   Edit2,
+  DollarSign,
   Trash2,
   X
 } from 'lucide-react';
@@ -1152,8 +1153,8 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                 <th style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right' }}>Pending Balance (₹)</th>
                 <th style={{ whiteSpace: 'nowrap', padding: '10px 12px' }}>Vehicle No.</th>
                 <th style={{ whiteSpace: 'nowrap', padding: '10px 12px' }}>Driver</th>
-                <th style={{ whiteSpace: 'nowrap', padding: '10px 12px' }}>Status</th>
-                <th style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'center' }}>Action</th>
+                <th style={{ whiteSpace: 'nowrap', padding: '10px 14px', textAlign: 'center', minWidth: '100px' }}>Status</th>
+                <th className="sticky-action-col" style={{ whiteSpace: 'nowrap', padding: '10px 14px', textAlign: 'center', minWidth: '310px' }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -1323,19 +1324,18 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                       </td>
 
                       {/* 16. STATUS */}
-                      <td style={{ whiteSpace: 'nowrap', padding: '10px 12px' }}>
+                      <td style={{ whiteSpace: 'nowrap', padding: '10px 14px', textAlign: 'center', minWidth: '100px' }}>
                         <span className={`badge-status ${b.payment_status === 'Paid' ? 'badge-paid' : b.payment_status === 'Partial' ? 'badge-partial' : 'badge-credit'}`}>
                           {b.payment_status}
                         </span>
                       </td>
 
-                      {/* 17. ACTION */}
-                      <td style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', gap: '5px' }}>
+                      {/* 17. ACTION (STICKY, UNIFORMLY ALIGNED) */}
+                      <td className="sticky-action-col" style={{ whiteSpace: 'nowrap', padding: '8px 12px', textAlign: 'center', minWidth: '310px' }}>
+                        <div className="action-buttons-group">
                           <button
                             type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '3px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            className="action-btn-pill view"
                             onClick={() => {
                               setCreatedBill(b);
                               setShowPrintModal(true);
@@ -1347,8 +1347,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                           </button>
                           <button
                             type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '3px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            className="action-btn-pill print"
                             onClick={() => {
                               setCreatedBill(b);
                               setShowPrintModal(true);
@@ -1360,17 +1359,34 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                           </button>
                           <button
                             type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '3px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            className="action-btn-pill edit"
                             onClick={() => handleOpenEditBill(b)}
                             title="Edit Invoice"
                           >
-                            <Edit2 size={12} color="#059669" />
+                            <Edit2 size={12} color="#0d9488" />
                             Edit
                           </button>
+                          {b.balance_due > 0 ? (
+                            <button
+                              type="button"
+                              className="action-btn-pill pay"
+                              onClick={() => {
+                                setCreatedBill(b);
+                                setShowPrintModal(true);
+                              }}
+                              title="Collect Payment"
+                            >
+                              <DollarSign size={12} />
+                              Pay
+                            </button>
+                          ) : (
+                            <div className="action-btn-pill settled" title="Fully Settled - Zero Balance">
+                              Settled
+                            </div>
+                          )}
                           <button
                             type="button"
-                            className="btn-veh-icon delete"
+                            className="action-btn-icon delete"
                             onClick={() => handleDeleteBill(b.id, b.bill_no)}
                             title="Cancel & Delete Invoice"
                           >
@@ -1548,8 +1564,9 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
       {showPrintModal && createdBill && (
         <InvoicePrintModal 
           bill={createdBill}
-          customer={{ name: customerName, phone: customerPhone, address: customerAddress, gstin: customerGstin }}
+          customer={selectedCustomer || { name: customerName, phone: customerPhone, address: customerAddress, gstin: customerGstin }}
           onClose={() => setShowPrintModal(false)}
+          onEdit={(b) => handleOpenEditBill(b)}
         />
       )}
 

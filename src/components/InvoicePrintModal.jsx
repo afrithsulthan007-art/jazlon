@@ -1,5 +1,5 @@
 import React from 'react';
-import { Printer, X, Eye } from 'lucide-react';
+import { Printer, X, Eye, Edit2 } from 'lucide-react';
 
 // Number to Words Converter for Indian Currency System
 function numberToWords(num) {
@@ -54,7 +54,7 @@ function numberToWords(num) {
   return result.trim();
 }
 
-export default function InvoicePrintModal({ bill, customer, onClose }) {
+export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
   if (!bill) return null;
 
   const handlePrint = () => {
@@ -138,6 +138,21 @@ export default function InvoicePrintModal({ bill, customer, onClose }) {
             <strong style={{ fontSize: '15px', color: '#0f172a', fontFamily: 'monospace' }}>{displayInvNo}</strong>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
+            {onEdit && (
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => {
+                  onClose();
+                  onEdit(bill);
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, color: '#0d9488', borderColor: '#cbd5e1' }}
+                title="Edit this invoice"
+              >
+                <Edit2 size={13} color="#0d9488" />
+                Edit Invoice
+              </button>
+            )}
             <button 
               type="button" 
               className="btn btn-primary btn-sm" 
