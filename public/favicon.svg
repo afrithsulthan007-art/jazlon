@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="jazlan-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.25" />
+    </filter>
+  </defs>
+  
+  <!-- Rounded Base Background -->
+  <rect width="512" height="512" rx="128" fill="url(#jazlan-grad)" />
+  
+  <!-- Subtle Internal Border -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="#ffffff" stroke-width="4" stroke-opacity="0.2" />
+
+  <!-- Stylized J Logo for JAZLAN -->
+  <g filter="url(#shadow)" fill="#ffffff">
+    <!-- Top Crossbar -->
+    <rect x="156" y="130" width="200" height="48" rx="24" />
+    <!-- Vertical Stem -->
+    <rect x="258" y="130" width="52" height="190" rx="24" />
+    <!-- Curved Tail of J -->
+    <path d="M 310,290 C 310,365 245,395 180,380 C 150,372 135,350 145,322 C 153,298 178,290 200,302 C 225,315 260,315 260,270 L 260,240 L 310,240 Z" />
+  </g>
+  
+  <!-- Spark Accent (Steel Precision) -->
+  <circle cx="366" cy="154" r="14" fill="#34d399" />
+</svg>

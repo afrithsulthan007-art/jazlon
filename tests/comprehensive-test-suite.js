@@ -1,3 +1,4 @@
+process.env.VERCEL = '1';
 require('dotenv').config();
 const assert = require('assert');
 const app = require('../server/index');
