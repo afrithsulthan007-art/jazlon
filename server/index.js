@@ -1449,7 +1449,7 @@ app.get('/api/accounts', async (req, res) => {
       SELECT 
         COALESCE(product_name, 'TMT Steel') as name,
         COALESCE(SUM(quantity), 0) as quantity,
-        COALESCE(unit, 'Tons') as unit,
+        COALESCE(unit, 'Kg') as unit,
         COALESCE(SUM(total_amount), 0) as revenue,
         COUNT(*) as billsCount
       FROM bills

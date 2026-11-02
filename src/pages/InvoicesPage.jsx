@@ -161,8 +161,8 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
       'Material',
       'Qty (Kg)',
       'Qty (Tons)',
-      'Selling Rate (Rs/Ton)',
-      'Catalog Bought Rate (Rs/Ton)',
+      'Selling Rate (Rs)',
+      'Catalog Bought Rate (Rs)',
       'Total Bought Cost (Rs)',
       'Before Tax (Rs)',
       '2% TDS (Rs)',
@@ -197,7 +197,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
 
       const itemRate = Number(b.rate) || 0;
       const rent = Number(b.rent_transport) || 0;
-      const beforeTax = (Number(b.subtotal) || (qtyTons * itemRate)) + rent;
+      const beforeTax = (Number(b.subtotal) || (isKg ? (qtyKg * itemRate) : (qtyTons * itemRate))) + rent;
       const tdsVal = Number(b.tds_amount) > 0 
         ? Number(b.tds_amount) 
         : Math.round((beforeTax * (Number(b.tds_rate) || 2)) / 100);
@@ -207,7 +207,9 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
 
       // Bought cost extracted from product catalog & profit: total bill amount - (tds + cgst + sgst + bought cost)
       const catalogRate = getCatalogBoughtRate(b);
-      const totalBoughtCost = Math.round(qtyTons * catalogRate);
+      const totalBoughtCost = isKg 
+        ? Math.round(qtyKg * catalogRate) 
+        : Math.round(qtyTons * catalogRate);
       const invoiceProfit = Math.round(totalAmt - (tdsVal + cgstVal + sgstVal + totalBoughtCost));
 
       const transferred = Number(b.amount_received) || 0;
@@ -700,13 +702,14 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                           {qtyInKg.toLocaleString('en-IN')} kg
                         </div>
                         <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-                          {qtyInTons} {bill.unit || 'Tons'}
+                          {qtyInTons} {qtyInTons === 1 ? 'Ton' : 'Tons'}
                         </div>
                       </td>
 
                       {/* 6. RATE */}
                       <td style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right', fontWeight: 700 }} className="font-mono">
-                        ₹{(Number(bill.rate) || 0).toLocaleString('en-IN')}
+                        <div>₹{(Number(bill.rate) || 0).toLocaleString('en-IN')}</div>
+                        <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>/{isKg ? 'kg' : 'Ton'}</div>
                       </td>
 
                       {/* 7. BOUGHT COST (FROM PRODUCT CATALOG) */}
@@ -715,7 +718,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                           ₹{totalBoughtCost.toLocaleString('en-IN')}
                         </div>
                         <div style={{ fontSize: '10.5px', color: '#64748b' }}>
-                          (@ ₹{catalogRate.toLocaleString('en-IN')}/T)
+                          (@ ₹{catalogRate.toLocaleString('en-IN')}/{isKg ? 'kg' : 'Ton'})
                         </div>
                       </td>
 

@@ -457,7 +457,7 @@ export default function AccountsPage({ onAccountUpdated }) {
     label: p.name,
     value: p.revenue,
     qty: p.quantity,
-    unit: p.unit || 'Tons',
+    unit: p.unit || 'Kg',
     color: productColors[idx % productColors.length]
   }));
 
@@ -533,7 +533,7 @@ export default function AccountsPage({ onAccountUpdated }) {
       ...topProducts.map(p => [
         escapeCsv(p.name),
         p.quantity,
-        escapeCsv(p.unit || 'Tons'),
+        escapeCsv(p.unit || 'Kg'),
         p.revenue,
         p.billsCount
       ].join(',')),

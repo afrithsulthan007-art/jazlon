@@ -313,7 +313,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
       product_name: productName.trim() || 'MS SCRAP',
       hsn_code: prodObj?.hsn_code || '7204',
       quantity: netKg || 13410,
-      unit: prodObj?.unit || 'KGS',
+      unit: prodObj?.unit || 'Kg',
       rate: rateVal || 37.20,
       subtotal: subtotal || 498852,
       rent_transport: rentVal,
@@ -1131,13 +1131,14 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                           {qtyInKg.toLocaleString('en-IN')} kg
                         </div>
                         <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-                          {qtyInTons} {b.unit || 'Tons'}
+                          {qtyInTons} {qtyInTons === 1 ? 'Ton' : 'Tons'}
                         </div>
                       </td>
 
                       {/* 6. RATE */}
                       <td style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right', fontWeight: 700 }} className="font-mono">
-                        ₹{(Number(b.rate) || 0).toLocaleString('en-IN')}
+                        <div>₹{(Number(b.rate) || 0).toLocaleString('en-IN')}</div>
+                        <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>/{isKg ? 'kg' : 'Ton'}</div>
                       </td>
 
                       {/* 7. BOUGHT COST (FROM PRODUCT CATALOG) */}
@@ -1146,7 +1147,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                           ₹{totalBoughtCost.toLocaleString('en-IN')}
                         </div>
                         <div style={{ fontSize: '10.5px', color: '#64748b' }}>
-                          (@ ₹{Number(catalogRate || 0).toLocaleString('en-IN')}/T)
+                          (@ ₹{Number(catalogRate || 0).toLocaleString('en-IN')}/{isKg ? 'kg' : 'Ton'})
                         </div>
                       </td>
 
