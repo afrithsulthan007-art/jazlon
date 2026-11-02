@@ -109,7 +109,7 @@ async function recalculateCustomer(customerId) {
   const [dirRows] = await pool.query(`
     SELECT COALESCE(SUM(amount), 0) as totalDirect
     FROM customer_payments
-    WHERE customer_id = ?
+    WHERE customer_id = ? AND (bill_id IS NULL OR bill_id = 0)
   `, [customerId]);
   const directPayments = (dirRows[0] && dirRows[0].totalDirect) ? Number(dirRows[0].totalDirect) : 0;
 

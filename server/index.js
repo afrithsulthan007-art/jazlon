@@ -340,6 +340,11 @@ app.post('/api/vehicles', async (req, res) => {
     const { vehicle_number, model_type, capacity_tons, driver_name, driver_phone } = req.body;
     if (!vehicle_number) return res.status(400).json({ error: 'Vehicle number is required' });
 
+    const existing = await db.prepare('SELECT id FROM vehicles WHERE UPPER(TRIM(vehicle_number)) = UPPER(TRIM(?))').get(vehicle_number.trim());
+    if (existing) {
+      return res.status(400).json({ error: 'Vehicle number already exists' });
+    }
+
     const info = await db.prepare(`
       INSERT INTO vehicles (vehicle_number, model_type, capacity_tons, driver_name, driver_phone)
       VALUES (?, ?, ?, ?, ?)
@@ -1079,19 +1084,22 @@ app.post('/api/bills', async (req, res) => {
     // 3. FINANCIAL CALCULATIONS
     const qty = Number(quantity);
     const itemRate = Number(rate);
-    const subtotal = qty * itemRate;
+    const subtotal = Math.round(qty * itemRate);
     const rent = Number(rent_transport || 0);
 
     const gRate = Number(gst_rate !== undefined ? gst_rate : 18);
     const taxableAmount = subtotal + rent;
-    const gstTotal = (taxableAmount * gRate) / 100;
-    const cgst = gstTotal / 2;
-    const sgst = gstTotal / 2;
+    const gstTotal = Math.round((taxableAmount * gRate) / 100);
+    const cgst = Math.round(gstTotal / 2);
+    const sgst = Math.round(gstTotal / 2);
 
     const tRate = Number(tds_rate || 0);
-    const tdsAmount = (taxableAmount * tRate) / 100;
+    const tdsAmount = Math.round((taxableAmount * tRate) / 100);
 
-    const totalAmount = Math.round(taxableAmount + gstTotal + tdsAmount);
+    const calculatedTotal = Math.round(taxableAmount + gstTotal + tdsAmount);
+    const totalAmount = (req.body.total_amount !== undefined && req.body.total_amount !== null && !isNaN(Number(req.body.total_amount)))
+      ? Math.round(Number(req.body.total_amount))
+      : calculatedTotal;
     const received = Number(amount_received || 0);
     const balanceDue = Math.max(0, totalAmount - received);
     const finalPaymentMode = received === 0 ? 'Credit' : (payment_mode || 'Cash');

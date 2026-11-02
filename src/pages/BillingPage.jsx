@@ -160,7 +160,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
   const netKg = hasProduct ? Number(kg || 0) : 0;
   const tons = netKg / 1000;
   const rateVal = hasProduct ? Number(ratePerTon || 0) : 0;
-  const subtotal = hasProduct ? Math.round(tons * rateVal) : 0;
+  const subtotal = hasProduct ? Math.round(netKg * rateVal) : 0;
   const rentVal = hasProduct ? Number(rentTransport || 0) : 0;
   const taxableBase = subtotal + rentVal;
 
@@ -221,12 +221,13 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
       return;
     }
     if (netKg <= 0 || rateVal <= 0) {
-      alert('Please enter valid weight in kg and rate per ton.');
+      alert('Please enter valid weight in kg and rate per kg.');
       return;
     }
 
     try {
       setSubmitting(true);
+      const selectedProduct = products.find(p => String(p.id) === String(productId));
       const res = await fetch('/api/bills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -240,8 +241,8 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
           driver_name: driverName.trim(),
           product_id: productId || null,
           product_name: productName.trim(),
-          quantity: tons,
-          unit: 'Tons',
+          quantity: netKg,
+          unit: selectedProduct?.unit || 'Kg',
           rate: rateVal,
           bought_price_per_unit: Number(boughtPricePerUnit || 0),
           rent_transport: rentVal,
@@ -748,15 +749,16 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
 
               <div>
                 <label style={{ fontSize: '10px', fontWeight: 700, color: '#047857', display: 'block', marginBottom: '2px' }}>
-                  Rate / Ton (₹) *
+                  Rate / Kg (₹) *
                 </label>
                 <input
                   type="number"
+                  step="0.01"
                   className="calc-stat-input"
                   style={{ height: '26px', fontSize: '12.5px', color: '#059669', borderColor: '#a7f3d0' }}
                   value={ratePerTon}
                   onChange={(e) => setRatePerTon(e.target.value)}
-                  placeholder="0"
+                  placeholder="0.00"
                   required
                 />
               </div>
@@ -1075,7 +1077,9 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
 
                   const matchedProd = products.find(p => p.id === b.product_id || (p.name && b.product_name && p.name.trim().toLowerCase() === b.product_name.trim().toLowerCase()));
                   const catalogRate = matchedProd?.default_bought_rate ?? b.catalog_bought_rate ?? b.bought_price_per_unit ?? 0;
-                  const totalBoughtCost = Math.round(qtyInTons * Number(catalogRate || 0));
+                  const totalBoughtCost = isKg 
+                    ? Math.round(qtyInKg * Number(catalogRate || 0)) 
+                    : Math.round(qtyInTons * Number(catalogRate || 0));
 
                   const beforeTax = Math.round((Number(b.subtotal) || 0) + (Number(b.rent_transport) || 0));
                   const tdsVal = Number(b.tds_amount) > 0 

@@ -67,7 +67,7 @@ export default function ProductsPage({ onProductUpdated }) {
     setName('');
     setCategory('Steel');
     setHsnCode('7214');
-    setUnit('Tons');
+    setUnit('Kg');
     setSellRate('');
     setBoughtRate('');
     setGstRate(18);

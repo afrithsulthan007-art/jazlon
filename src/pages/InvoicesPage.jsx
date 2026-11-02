@@ -649,7 +649,9 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                     : (Number(bill.quantity) || 0);
 
                   const catalogRate = getCatalogBoughtRate(bill);
-                  const totalBoughtCost = Math.round(qtyInTons * catalogRate);
+                  const totalBoughtCost = isKg 
+                    ? Math.round(qtyInKg * catalogRate) 
+                    : Math.round(qtyInTons * catalogRate);
 
                   const beforeTax = Math.round((Number(bill.subtotal) || 0) + (Number(bill.rent_transport) || 0));
                   const tdsVal = Number(bill.tds_amount) > 0 
