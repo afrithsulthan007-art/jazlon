@@ -842,6 +842,201 @@ async function runAllTests() {
     assert(Array.isArray(res.data.topProducts));
   });
 
+  console.log('\n--- SUITE 11: Comprehensive Edit & Delete in All Functions ---');
+  let editTestBillId = null;
+  let editTestPaymentId = null;
+  let editTestAdjId = null;
+  let editTestSupPaymentId = null;
+  let editTestExpenseId = null;
+  let editTestPurchaseId = null;
+
+  await test('TC76: PUT /api/bills/:id edits quantity, rate, and totals of existing invoice', async () => {
+    // Create bill first
+    const bRes = await request('POST', '/api/bills', {
+      customer_name: `Edit Cust ${uniqueSuffix}`,
+      product_name: `Edit Steel ${uniqueSuffix}`,
+      quantity: 1000,
+      unit: 'Kg',
+      rate: 35,
+      amount_received: 0,
+      payment_mode: 'Credit'
+    });
+    assert([200, 201].includes(bRes.status));
+    editTestBillId = bRes.data.bill.id;
+
+    // Now edit the bill to 1200 Kg @ ₹36/Kg
+    const putRes = await request('PUT', `/api/bills/${editTestBillId}`, {
+      quantity: 1200,
+      rate: 36,
+      amount_received: 10000
+    });
+    assert.strictEqual(putRes.status, 200);
+    assert.strictEqual(Number(putRes.data.bill.quantity), 1200);
+    assert.strictEqual(Number(putRes.data.bill.rate), 36);
+    assert.strictEqual(Number(putRes.data.bill.amount_received), 10000);
+  });
+
+  await test('TC77: DELETE /api/bills/:id deletes invoice and adjusts customer dues', async () => {
+    assert(editTestBillId);
+    const delRes = await request('DELETE', `/api/bills/${editTestBillId}`);
+    assert.strictEqual(delRes.status, 200);
+    assert.strictEqual(delRes.data.success, true);
+
+    // Verify it is gone
+    const checkRes = await request('GET', '/api/bills');
+    const exists = checkRes.data.find(b => b.id === editTestBillId);
+    assert.strictEqual(exists, undefined);
+  });
+
+  await test('TC78: PUT /api/customers/:id updates customer phone and address', async () => {
+    assert(testCustomerId);
+    const putRes = await request('PUT', `/api/customers/${testCustomerId}`, {
+      name: `Updated Cust ${uniqueSuffix}`,
+      phone: '9999888877',
+      address: 'New Industrial Zone, Chennai'
+    });
+    assert.strictEqual(putRes.status, 200);
+    assert.strictEqual(putRes.data.phone, '9999888877');
+    assert.strictEqual(putRes.data.address, 'New Industrial Zone, Chennai');
+  });
+
+  await test('TC79: DELETE /api/customers/payments/:paymentId deletes customer payment', async () => {
+    assert(testCustomerId);
+    // Record payment first
+    const payRes = await request('POST', `/api/customers/${testCustomerId}/pay`, {
+      amount: 5000,
+      payment_mode: 'Cash',
+      notes: 'Test payment for deletion'
+    });
+    assert.strictEqual(payRes.status, 200);
+
+    const custDetail = await request('GET', `/api/customers/${testCustomerId}`);
+    const payItem = custDetail.data.payments.find(p => p.notes === 'Test payment for deletion');
+    assert(payItem);
+    editTestPaymentId = payItem.id;
+
+    // Delete it
+    const delRes = await request('DELETE', `/api/customers/payments/${editTestPaymentId}`);
+    assert.strictEqual(delRes.status, 200);
+    assert.strictEqual(delRes.data.success, true);
+  });
+
+  await test('TC80: DELETE /api/customers/adjustments/:adjId deletes customer adjustment', async () => {
+    assert(testCustomerId);
+    // Add adjustment
+    const adjRes = await request('POST', `/api/customers/${testCustomerId}/adjust`, {
+      amount: 1500,
+      notes: 'Test adjustment for deletion'
+    });
+    assert.strictEqual(adjRes.status, 200);
+
+    const custDetail = await request('GET', `/api/customers/${testCustomerId}`);
+    const adjItem = custDetail.data.adjustments.find(a => a.notes === 'Test adjustment for deletion');
+    assert(adjItem);
+    editTestAdjId = adjItem.id;
+
+    // Delete it
+    const delRes = await request('DELETE', `/api/customers/adjustments/${editTestAdjId}`);
+    assert.strictEqual(delRes.status, 200);
+    assert.strictEqual(delRes.data.success, true);
+  });
+
+  await test('TC81: PUT /api/suppliers/:id updates supplier company and contact', async () => {
+    assert(testSupplierId);
+    const putRes = await request('PUT', `/api/suppliers/${testSupplierId}`, {
+      name: `Updated Supplier ${uniqueSuffix}`,
+      company_name: 'Jindal Steel Mill',
+      phone: '9888777666',
+      address: 'Industrial Estate, Bellary'
+    });
+    assert.strictEqual(putRes.status, 200);
+    assert.strictEqual(putRes.data.supplier.company_name, 'Jindal Steel Mill');
+    assert.strictEqual(putRes.data.supplier.phone, '9888777666');
+  });
+
+  await test('TC82: PUT /api/suppliers/purchases/:purchaseId updates inward purchase', async () => {
+    assert(testSupplierId);
+    const pRes = await request('POST', `/api/suppliers/${testSupplierId}/purchases`, {
+      product_name: 'Raw Scrap',
+      quantity: 500,
+      bought_price_per_unit: 30,
+      paid_amount: 5000
+    });
+    assert([200, 201].includes(pRes.status));
+    editTestPurchaseId = pRes.data.purchase_id;
+
+    // Edit purchase
+    const putRes = await request('PUT', `/api/suppliers/purchases/${editTestPurchaseId}`, {
+      product_name: 'Raw Scrap Premium',
+      quantity: 600,
+      bought_price_per_unit: 32,
+      paid_amount: 8000
+    });
+    assert.strictEqual(putRes.status, 200);
+    assert.strictEqual(Number(putRes.data.purchase.quantity), 600);
+    assert.strictEqual(Number(putRes.data.purchase.bought_price_per_unit), 32);
+  });
+
+  await test('TC83: DELETE /api/suppliers/payments/:paymentId deletes supplier payment', async () => {
+    assert(testSupplierId);
+    const payRes = await request('POST', `/api/suppliers/${testSupplierId}/pay`, {
+      amount: 4000,
+      payment_mode: 'Bank Transfer'
+    });
+    assert.strictEqual(payRes.status, 200);
+
+    const supDetail = await request('GET', `/api/suppliers/${testSupplierId}`);
+    const payItem = supDetail.data.payments[0];
+    assert(payItem);
+    editTestSupPaymentId = payItem.id;
+
+    const delRes = await request('DELETE', `/api/suppliers/payments/${editTestSupPaymentId}`);
+    assert.strictEqual(delRes.status, 200);
+    assert.strictEqual(delRes.data.success, true);
+  });
+
+  await test('TC84: DELETE /api/vehicles/expenses/:expenseId deletes vehicle expense', async () => {
+    assert(testVehicleId);
+    const expRes = await request('POST', `/api/vehicles/${testVehicleId}/expenses`, {
+      expense_type: 'Diesel',
+      amount: 3500,
+      liters: 35,
+      rate_per_liter: 100
+    });
+    assert([200, 201].includes(expRes.status));
+    editTestExpenseId = expRes.data.expense.id;
+
+    const delRes = await request('DELETE', `/api/vehicles/expenses/${editTestExpenseId}`);
+    assert.strictEqual(delRes.status, 200);
+    assert.strictEqual(delRes.data.success, true);
+  });
+
+  await test('TC85: DELETE /api/employees/:id deletes employee and their payments', async () => {
+    // Create new employee
+    const empRes = await request('POST', '/api/employees', {
+      name: `Delete Emp ${uniqueSuffix}`,
+      employee_type: 'Loader',
+      phone: '9000111222'
+    });
+    assert([200, 201].includes(empRes.status));
+    const empId = empRes.data.id;
+
+    // Add payment
+    await request('POST', `/api/employees/${empId}/pay`, {
+      amount: 2500,
+      payment_mode: 'Cash'
+    });
+
+    // Delete employee
+    const delRes = await request('DELETE', `/api/employees/${empId}`);
+    assert.strictEqual(delRes.status, 200);
+    assert.strictEqual(delRes.data.success, true);
+
+    // Verify gone
+    const empList = await request('GET', '/api/employees');
+    assert.strictEqual(empList.data.find(e => e.id === empId), undefined);
+  });
+
   // Clean up test data
   console.log('\n--- Cleaning up temporary test data ---');
   try {

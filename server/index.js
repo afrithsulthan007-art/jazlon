@@ -301,6 +301,35 @@ app.delete('/api/customers/:id', async (req, res) => {
   }
 });
 
+app.delete('/api/customers/payments/:paymentId', async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const pay = await db.prepare('SELECT * FROM customer_payments WHERE id = ?').get(paymentId);
+    if (!pay) return res.status(404).json({ error: 'Payment record not found' });
+
+    await db.prepare('DELETE FROM customer_payments WHERE id = ?').run(paymentId);
+    await db.prepare("DELETE FROM accounts_ledger WHERE reference_type = 'CustomerPayment' AND reference_id = ?").run(paymentId);
+    await recalculateCustomer(pay.customer_id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/customers/adjustments/:adjId', async (req, res) => {
+  try {
+    const { adjId } = req.params;
+    const adj = await db.prepare('SELECT * FROM customer_adjustments WHERE id = ?').get(adjId);
+    if (!adj) return res.status(404).json({ error: 'Adjustment record not found' });
+
+    await db.prepare('DELETE FROM customer_adjustments WHERE id = ?').run(adjId);
+    await recalculateCustomer(adj.customer_id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // -----------------------------------------------------------------------------
 // 3. VEHICLES API
 // -----------------------------------------------------------------------------
@@ -466,6 +495,21 @@ app.post('/api/vehicles/:id/expenses', async (req, res) => {
     const newExpense = await db.prepare('SELECT * FROM vehicle_expenses WHERE id = ?').get(info.lastInsertRowid);
 
     res.status(201).json({ success: true, vehicle: updatedVehicle, expense: newExpense });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/vehicles/expenses/:expenseId', async (req, res) => {
+  try {
+    const { expenseId } = req.params;
+    const exp = await db.prepare('SELECT * FROM vehicle_expenses WHERE id = ?').get(expenseId);
+    if (!exp) return res.status(404).json({ error: 'Expense record not found' });
+
+    await db.prepare('DELETE FROM vehicle_expenses WHERE id = ?').run(expenseId);
+    await db.prepare("DELETE FROM accounts_ledger WHERE reference_type = 'VehicleExpense' AND reference_id = ?").run(expenseId);
+    await recalculateVehicle(exp.vehicle_id);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -645,6 +689,35 @@ app.get('/api/employees/:id/payments', async (req, res) => {
     const { id } = req.params;
     const payments = await db.prepare('SELECT * FROM employee_payments WHERE employee_id = ? ORDER BY date DESC, id DESC').all(id);
     res.json(payments);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/employees/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.prepare('DELETE FROM employee_payments WHERE employee_id = ?').run(id);
+    await db.prepare("DELETE FROM accounts_ledger WHERE reference_type = 'EmployeePayment' AND reference_id IN (SELECT id FROM employee_payments WHERE employee_id = ?)").run(id);
+    await db.prepare('DELETE FROM employees WHERE id = ?').run(id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/employees/payments/:paymentId', async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const pay = await db.prepare('SELECT * FROM employee_payments WHERE id = ?').get(paymentId);
+    if (!pay) return res.status(404).json({ error: 'Payment record not found' });
+
+    await db.prepare('DELETE FROM employee_payments WHERE id = ?').run(paymentId);
+    await db.prepare("DELETE FROM accounts_ledger WHERE reference_type = 'EmployeePayment' AND reference_id = ?").run(paymentId);
+    
+    // Recalculate employee balance
+    await recalculateEmployee(pay.employee_id);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -897,6 +970,106 @@ app.post('/api/suppliers/:id/pay', async (req, res) => {
     await recalculateSupplier(id);
     const updatedSup = await db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
     res.json({ success: true, supplier: updatedSup });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/suppliers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, company_name, phone, address, gstin, materials_supplied } = req.body;
+    await db.prepare(`
+      UPDATE suppliers
+      SET name = ?, company_name = ?, phone = ?, address = ?, gstin = ?, materials_supplied = ?
+      WHERE id = ?
+    `).run(
+      name.trim(),
+      company_name || '',
+      phone || '',
+      address || '',
+      gstin || '',
+      materials_supplied || '',
+      id
+    );
+    const updated = await db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
+    res.json({ success: true, supplier: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/suppliers/purchases/:purchaseId', async (req, res) => {
+  try {
+    const { purchaseId } = req.params;
+    const old = await db.prepare('SELECT * FROM supplier_purchases WHERE id = ?').get(purchaseId);
+    if (!old) return res.status(404).json({ error: 'Purchase record not found' });
+
+    const {
+      product_name,
+      quantity,
+      unit,
+      bought_price_per_unit,
+      total_amount,
+      paid_amount,
+      balance_due,
+      notes,
+      purchase_date
+    } = req.body;
+
+    const newQty = Number(quantity || old.quantity || 0);
+    const oldQty = Number(old.quantity || 0);
+    const qtyDiff = newQty - oldQty;
+
+    // Adjust product inventory
+    if (old.product_id && qtyDiff !== 0) {
+      await db.prepare('UPDATE products SET stock_qty = GREATEST(0, stock_qty + ?) WHERE id = ?').run(qtyDiff, old.product_id);
+    }
+
+    const rateVal = Number(bought_price_per_unit !== undefined ? bought_price_per_unit : old.bought_price_per_unit || 0);
+    const newTotal = total_amount !== undefined ? Number(total_amount) : Math.round(newQty * rateVal);
+    const newPaid = paid_amount !== undefined ? Number(paid_amount) : Number(old.paid_amount || 0);
+    const newBal = balance_due !== undefined ? Number(balance_due) : Math.max(0, newTotal - newPaid);
+    const paymentStatus = newBal === 0 ? 'Paid' : newPaid > 0 ? 'Partial' : 'Pending';
+
+    await db.prepare(`
+      UPDATE supplier_purchases SET
+        product_name = ?, quantity = ?, unit = ?, bought_price_per_unit = ?,
+        total_amount = ?, paid_amount = ?, balance_due = ?,
+        payment_status = ?, notes = ?, purchase_date = ?
+      WHERE id = ?
+    `).run(
+      (product_name || old.product_name).trim(),
+      newQty,
+      unit || old.unit || 'Kg',
+      rateVal,
+      newTotal,
+      newPaid,
+      newBal,
+      paymentStatus,
+      notes !== undefined ? notes : old.notes,
+      purchase_date || old.purchase_date,
+      purchaseId
+    );
+
+    await recalculateSupplier(old.supplier_id);
+    const updated = await db.prepare('SELECT * FROM supplier_purchases WHERE id = ?').get(purchaseId);
+    res.json({ success: true, purchase: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/suppliers/payments/:paymentId', async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const pay = await db.prepare('SELECT * FROM supplier_payments WHERE id = ?').get(paymentId);
+    if (!pay) return res.status(404).json({ error: 'Payment not found' });
+
+    await db.prepare('DELETE FROM supplier_payments WHERE id = ?').run(paymentId);
+    await db.prepare("DELETE FROM accounts_ledger WHERE reference_type = 'SupplierPayment' AND reference_id = ?").run(paymentId);
+    await recalculateSupplier(pay.supplier_id);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1217,6 +1390,136 @@ app.post('/api/bills', async (req, res) => {
       bill: createdBill,
       customer: updatedCustomer
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Edit / Update Bill
+app.put('/api/bills/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const oldBill = await db.prepare('SELECT * FROM bills WHERE id = ?').get(id);
+    if (!oldBill) return res.status(404).json({ error: 'Bill not found' });
+
+    const {
+      customer_id,
+      customer_name,
+      product_id,
+      product_name,
+      quantity,
+      unit,
+      rate,
+      bought_price_per_unit,
+      rent_transport,
+      gst_rate,
+      cgst_amount,
+      sgst_amount,
+      tds_rate,
+      tds_amount,
+      total_amount,
+      amount_received,
+      balance_due,
+      payment_mode,
+      payment_status,
+      vehicle_number,
+      driver_name,
+      notes,
+      date,
+      time
+    } = req.body;
+
+    const newQty = Number(quantity !== undefined ? quantity : oldBill.quantity || 0);
+    const oldQty = Number(oldBill.quantity || 0);
+    const qtyDiff = newQty - oldQty;
+
+    // Adjust product inventory stock
+    const targetProdId = product_id || oldBill.product_id;
+    if (targetProdId && qtyDiff !== 0) {
+      await db.prepare('UPDATE products SET stock_qty = GREATEST(0, stock_qty - ?) WHERE id = ?').run(qtyDiff, targetProdId);
+    }
+
+    const updatedCustName = (customer_name || oldBill.customer_name || '').trim();
+    const updatedProdName = (product_name || oldBill.product_name || '').trim();
+    const updatedUnit = unit || oldBill.unit || 'Kg';
+    const updatedRate = Number(rate !== undefined ? rate : oldBill.rate);
+    const updatedBoughtPrice = Number(bought_price_per_unit !== undefined ? bought_price_per_unit : oldBill.bought_price_per_unit || 0);
+    const updatedRent = Number(rent_transport !== undefined ? rent_transport : oldBill.rent_transport || 0);
+
+    const updatedSubtotal = Math.round(newQty * updatedRate);
+    const taxableBase = updatedSubtotal + updatedRent;
+
+    const effectiveGstRate = gst_rate !== undefined ? Number(gst_rate) : (Number(oldBill.gst_rate) || 18);
+    const effectiveCgst = cgst_amount !== undefined ? Number(cgst_amount) : Math.round((taxableBase * (effectiveGstRate / 2)) / 100);
+    const effectiveSgst = sgst_amount !== undefined ? Number(sgst_amount) : Math.round((taxableBase * (effectiveGstRate / 2)) / 100);
+    const effectiveTdsRate = tds_rate !== undefined ? Number(tds_rate) : (Number(oldBill.tds_rate) || 2);
+    const effectiveTds = tds_amount !== undefined ? Number(tds_amount) : Math.round((taxableBase * effectiveTdsRate) / 100);
+
+    const computedTotal = taxableBase + effectiveCgst + effectiveSgst + effectiveTds;
+    const effectiveTotal = total_amount !== undefined && Number(total_amount) > 0 ? Number(total_amount) : computedTotal;
+
+    const effectivePaid = amount_received !== undefined ? Number(amount_received) : Number(oldBill.amount_received || 0);
+    const effectiveBal = balance_due !== undefined ? Number(balance_due) : Math.max(0, effectiveTotal - effectivePaid);
+    const effectiveStatus = payment_status || (effectiveBal === 0 ? 'Paid' : effectivePaid > 0 ? 'Partial' : 'Credit');
+    const effectiveMode = payment_mode || oldBill.payment_mode || (effectivePaid === 0 ? 'Credit' : 'Cash');
+
+    await db.prepare(`
+      UPDATE bills SET
+        customer_id = ?, customer_name = ?, product_id = ?, product_name = ?,
+        quantity = ?, unit = ?, rate = ?, bought_price_per_unit = ?, subtotal = ?,
+        rent_transport = ?, gst_rate = ?, cgst_amount = ?, sgst_amount = ?,
+        tds_rate = ?, tds_amount = ?, total_amount = ?, amount_received = ?,
+        balance_due = ?, payment_mode = ?, payment_status = ?,
+        vehicle_number = ?, driver_name = ?, notes = ?, date = ?, time = ?
+      WHERE id = ?
+    `).run(
+      customer_id || oldBill.customer_id,
+      updatedCustName,
+      targetProdId,
+      updatedProdName,
+      newQty,
+      updatedUnit,
+      updatedRate,
+      updatedBoughtPrice,
+      updatedSubtotal,
+      updatedRent,
+      effectiveGstRate,
+      effectiveCgst,
+      effectiveSgst,
+      effectiveTdsRate,
+      effectiveTds,
+      effectiveTotal,
+      effectivePaid,
+      effectiveBal,
+      effectiveMode,
+      effectiveStatus,
+      (vehicle_number !== undefined ? vehicle_number : oldBill.vehicle_number || '').trim().toUpperCase(),
+      (driver_name !== undefined ? driver_name : oldBill.driver_name || '').trim(),
+      (notes !== undefined ? notes : oldBill.notes || '').trim(),
+      date || oldBill.date,
+      time || oldBill.time,
+      id
+    );
+
+    // Update customer payments linked to this bill
+    if (effectivePaid > 0) {
+      const existingPay = await db.prepare('SELECT id FROM customer_payments WHERE bill_id = ?').get(id);
+      if (existingPay) {
+        await db.prepare('UPDATE customer_payments SET amount = ?, payment_mode = ?, date = ? WHERE id = ?')
+          .run(effectivePaid, effectiveMode, date || oldBill.date, existingPay.id);
+      } else {
+        await db.prepare('INSERT INTO customer_payments (customer_id, bill_id, date, amount, payment_mode, notes) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(customer_id || oldBill.customer_id, id, date || oldBill.date, effectivePaid, effectiveMode, `Payment for bill ${oldBill.bill_no}`);
+      }
+    } else {
+      await db.prepare('DELETE FROM customer_payments WHERE bill_id = ?').run(id);
+    }
+
+    if (oldBill.customer_id) await recalculateCustomer(oldBill.customer_id);
+    if (customer_id && customer_id !== oldBill.customer_id) await recalculateCustomer(customer_id);
+
+    const updated = await db.prepare('SELECT * FROM bills WHERE id = ?').get(id);
+    res.json({ success: true, bill: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

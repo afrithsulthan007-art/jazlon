@@ -12,7 +12,9 @@ import {
   AlertCircle,
   Download,
   FileText,
-  RotateCcw
+  RotateCcw,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 
 export default function EmployeesPage({ onEmployeeUpdated }) {
@@ -22,9 +24,12 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
 
   // Add / Edit Employee Modal
   const [showEmpModal, setShowEmpModal] = useState(false);
+  const [editingEmpId, setEditingEmpId] = useState(null);
   const [empName, setEmpName] = useState('');
   const [empType, setEmpType] = useState('Driver');
   const [empPhone, setEmpPhone] = useState('');
+  const [empSalary, setEmpSalary] = useState('');
+  const [empStatus, setEmpStatus] = useState('Active');
   const [savingEmp, setSavingEmp] = useState(false);
 
   // Pay Salary Modal
@@ -66,37 +71,90 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
     fetchEmployees();
   }, []);
 
-  const handleAddEmployee = async (e) => {
+  const handleOpenAddEmp = () => {
+    setEditingEmpId(null);
+    setEmpName('');
+    setEmpType('Driver');
+    setEmpPhone('');
+    setEmpSalary('');
+    setEmpStatus('Active');
+    setShowEmpModal(true);
+  };
+
+  const handleOpenEditEmp = (emp) => {
+    setEditingEmpId(emp.id);
+    setEmpName(emp.name || '');
+    setEmpType(emp.employee_type || 'Driver');
+    setEmpPhone(emp.phone || '');
+    setEmpSalary(emp.base_salary || '');
+    setEmpStatus(emp.status || 'Active');
+    setShowEmpModal(true);
+  };
+
+  const handleSaveEmployee = async (e) => {
     e.preventDefault();
     if (!empName.trim() || !empType.trim()) return;
 
     try {
       setSavingEmp(true);
-      const res = await fetch('/api/employees', {
-        method: 'POST',
+      const url = editingEmpId ? `/api/employees/${editingEmpId}` : '/api/employees';
+      const method = editingEmpId ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: empName.trim(),
           employee_type: empType.trim(),
           phone: empPhone.trim(),
           salary_type: 'Monthly',
-          base_salary: 0,
-          current_credit_balance: 0
+          base_salary: Number(empSalary || 0),
+          status: empStatus || 'Active'
         })
       });
 
-      if (!res.ok) throw new Error('Failed to create employee');
+      if (!res.ok) throw new Error(editingEmpId ? 'Failed to update employee' : 'Failed to create employee');
 
       setShowEmpModal(false);
+      setEditingEmpId(null);
       setEmpName('');
       setEmpPhone('');
       setEmpType('Driver');
+      setEmpSalary('');
       fetchEmployees();
       if (onEmployeeUpdated) onEmployeeUpdated();
     } catch (err) {
       alert(err.message);
     } finally {
       setSavingEmp(false);
+    }
+  };
+
+  const handleDeleteEmployee = async (emp) => {
+    if (!window.confirm(`Are you sure you want to remove employee "${emp.name}"? This will also remove their salary slip and payment records.`)) return;
+    try {
+      const res = await fetch(`/api/employees/${emp.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete employee');
+      fetchEmployees();
+      if (onEmployeeUpdated) onEmployeeUpdated();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleDeleteEmployeePayment = async (paymentId) => {
+    if (!window.confirm('Are you sure you want to delete this salary payment record?')) return;
+    try {
+      const res = await fetch(`/api/employees/payments/${paymentId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete payment record');
+      if (viewEmp) {
+        const pRes = await fetch(`/api/employees/${viewEmp.id}/payments`);
+        const pData = await pRes.json();
+        setEmpPayments(pData || []);
+      }
+      fetchEmployees();
+      if (onEmployeeUpdated) onEmployeeUpdated();
+    } catch (err) {
+      alert(err.message);
     }
   };
 
@@ -431,7 +489,7 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
             />
           </div>
 
-          <button className="btn btn-primary" onClick={() => setShowEmpModal(true)}>
+          <button className="btn btn-primary" onClick={handleOpenAddEmp}>
             <Plus size={16} />
             Add Employee
           </button>
@@ -513,7 +571,7 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
                       )}
                     </td>
                     <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'inline-flex', gap: '8px' }}>
+                      <div style={{ display: 'inline-flex', gap: '6px' }}>
                         {/* Pay Salary Option */}
                         <button 
                           className="btn btn-primary btn-sm"
@@ -533,6 +591,23 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
                           <Eye size={13} />
                           Slip
                         </button>
+
+                        <button 
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleOpenEditEmp(emp)}
+                          title="Edit Employee"
+                        >
+                          <Edit2 size={13} color="#059669" />
+                          Edit
+                        </button>
+
+                        <button 
+                          className="btn-veh-icon delete"
+                          onClick={() => handleDeleteEmployee(emp)}
+                          title="Delete Employee"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -543,16 +618,16 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
         </div>
       </div>
 
-      {/* MODAL: ADD EMPLOYEE (COMPACT & SIMPLIFIED) */}
+      {/* MODAL: ADD / EDIT EMPLOYEE */}
       {showEmpModal && (
         <div className="modal-overlay" onClick={() => setShowEmpModal(false)}>
           <div className="modal-content" style={{ maxWidth: '440px', width: '100%' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Add New Employee</h2>
+              <h2 className="modal-title">{editingEmpId ? 'Edit Employee Profile' : 'Add New Employee'}</h2>
               <button className="modal-close" onClick={() => setShowEmpModal(false)}>×</button>
             </div>
 
-            <form onSubmit={handleAddEmployee}>
+            <form onSubmit={handleSaveEmployee}>
               <div className="form-group" style={{ marginBottom: '14px' }}>
                 <label className="form-label">Employee Full Name *</label>
                 <input 
@@ -615,6 +690,27 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
                 </div>
               </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Base Salary (₹)</label>
+                  <input 
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    placeholder="e.g. 15000"
+                    value={empSalary}
+                    onChange={(e) => setEmpSalary(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Status</label>
+                  <select className="form-select" value={empStatus} onChange={(e) => setEmpStatus(e.target.value)}>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive / Left</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="form-group" style={{ marginBottom: '16px' }}>
                 <label className="form-label">Phone Number (Optional)</label>
                 <input 
@@ -630,8 +726,8 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowEmpModal(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={savingEmp}>
-                  {savingEmp ? 'Saving...' : 'Add Employee'}
+                <button type="submit" className="btn btn-primary" disabled={savingEmp} style={{ backgroundColor: '#059669', borderColor: '#059669' }}>
+                  {savingEmp ? 'Saving...' : editingEmpId ? 'Save Changes' : 'Add Employee'}
                 </button>
               </div>
             </form>
@@ -970,12 +1066,13 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
                         <th style={{ textAlign: 'center' }}>Mode</th>
                         <th>Notes / Remarks</th>
                         <th style={{ textAlign: 'right' }}>Amount Paid (₹)</th>
+                        <th style={{ textAlign: 'center', width: '50px' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredPayments.length === 0 ? (
                         <tr>
-                          <td colSpan="5" style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>
+                          <td colSpan="6" style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>
                             No payment records found matching the selected filter.
                           </td>
                         </tr>
@@ -993,6 +1090,22 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
                             <td style={{ textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#0f172a' }}>
                               ₹{p.amount.toLocaleString('en-IN')}
                             </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEmployeePayment(p.id)}
+                                title="Delete payment record"
+                                style={{
+                                  border: 'none',
+                                  background: 'none',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: '2px 4px'
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -1000,7 +1113,7 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
                     {filteredPayments.length > 0 && (
                       <tfoot>
                         <tr style={{ backgroundColor: '#f8fafc', fontWeight: 800, borderTop: '2px solid #cbd5e1' }}>
-                          <td colSpan="4" style={{ textAlign: 'right', padding: '10px 12px', fontSize: '12px', color: '#0f172a' }}>
+                          <td colSpan="5" style={{ textAlign: 'right', padding: '10px 12px', fontSize: '12px', color: '#0f172a' }}>
                             TOTAL FILTERED SALARIES PAID:
                           </td>
                           <td style={{ textAlign: 'right', padding: '10px 12px', fontSize: '13px', color: '#059669', fontFamily: 'monospace' }}>

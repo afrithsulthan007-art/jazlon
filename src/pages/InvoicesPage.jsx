@@ -5,6 +5,7 @@ import {
   Printer, 
   DollarSign, 
   Trash2, 
+  Edit2,
   Calendar, 
   Filter,
   CheckCircle2,
@@ -13,7 +14,8 @@ import {
   Download,
   Truck,
   RotateCcw,
-  Eye
+  Eye,
+  X
 } from 'lucide-react';
 import InvoicePrintModal from '../components/InvoicePrintModal';
 
@@ -46,6 +48,91 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
   const [payMode, setPayMode] = useState('Cash');
   const [payRef, setPayRef] = useState('');
   const [paying, setPaying] = useState(false);
+
+  // Edit Bill Modal State
+  const [editBill, setEditBill] = useState(null);
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editProductName, setEditProductName] = useState('');
+  const [editQty, setEditQty] = useState('');
+  const [editRate, setEditRate] = useState('');
+  const [editRent, setEditRent] = useState(0);
+  const [editCgstEnabled, setEditCgstEnabled] = useState(true);
+  const [editSgstEnabled, setEditSgstEnabled] = useState(true);
+  const [editTdsEnabled, setEditTdsEnabled] = useState(true);
+  const [editPaidAmount, setEditPaidAmount] = useState('');
+  const [editPaymentMode, setEditPaymentMode] = useState('Cash');
+  const [editVehicleNo, setEditVehicleNo] = useState('');
+  const [editDriverName, setEditDriverName] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const handleOpenEdit = (bill) => {
+    setEditBill(bill);
+    setEditCustomerName(bill.customer_name || '');
+    setEditProductName(bill.product_name || '');
+    setEditQty(bill.quantity || '');
+    setEditRate(bill.rate || '');
+    setEditRent(bill.rent_transport || 0);
+    setEditCgstEnabled(Number(bill.cgst_amount || 0) > 0);
+    setEditSgstEnabled(Number(bill.sgst_amount || 0) > 0);
+    setEditTdsEnabled(Number(bill.tds_amount || 0) > 0);
+    setEditPaidAmount(bill.amount_received || 0);
+    setEditPaymentMode(bill.payment_mode || 'Cash');
+    setEditVehicleNo(bill.vehicle_number || '');
+    setEditDriverName(bill.driver_name || '');
+    setEditNotes(bill.notes || '');
+    setEditDate(bill.date || new Date().toISOString().split('T')[0]);
+  };
+
+  const editSubtotal = Math.round((Number(editQty) || 0) * (Number(editRate) || 0));
+  const editBase = editSubtotal + (Number(editRent) || 0);
+  const editCgst = editCgstEnabled ? Math.round(editBase * 0.09) : 0;
+  const editSgst = editSgstEnabled ? Math.round(editBase * 0.09) : 0;
+  const editTds = editTdsEnabled ? Math.round(editBase * 0.02) : 0;
+  const editTotal = editBase + editCgst + editSgst + editTds;
+  const editDue = Math.max(0, editTotal - (Number(editPaidAmount) || 0));
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editBill) return;
+    try {
+      setSavingEdit(true);
+      const res = await fetch(`/api/bills/${editBill.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: editCustomerName,
+          product_name: editProductName,
+          quantity: Number(editQty),
+          unit: editBill.unit || 'Kg',
+          rate: Number(editRate),
+          rent_transport: Number(editRent) || 0,
+          cgst_amount: editCgst,
+          sgst_amount: editSgst,
+          tds_amount: editTds,
+          total_amount: editTotal,
+          amount_received: Number(editPaidAmount) || 0,
+          balance_due: editDue,
+          payment_mode: Number(editPaidAmount) === 0 ? 'Credit' : editPaymentMode,
+          payment_status: editDue === 0 ? 'Paid' : Number(editPaidAmount) > 0 ? 'Partial' : 'Credit',
+          vehicle_number: editVehicleNo,
+          driver_name: editDriverName,
+          notes: editNotes,
+          date: editDate
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update invoice');
+      setEditBill(null);
+      fetchBills();
+      if (onInvoiceUpdated) onInvoiceUpdated();
+    } catch (err) {
+      alert('Error updating invoice: ' + err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const fetchBills = async () => {
     try {
@@ -827,6 +914,17 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                             Print
                           </button>
 
+                          <button 
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '3px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            onClick={() => handleOpenEdit(bill)}
+                            title="Edit Invoice"
+                          >
+                            <Edit2 size={12} color="#059669" />
+                            Edit
+                          </button>
+
                           {bill.balance_due > 0 && (
                             <button 
                               className="btn btn-success btn-sm"
@@ -921,6 +1019,197 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                 </button>
                 <button type="submit" className="btn btn-success" disabled={paying}>
                   {paying ? 'Saving...' : 'Confirm Receipt'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT INVOICE / BILL MODAL */}
+      {editBill && (
+        <div className="modal-overlay" onClick={() => setEditBill(null)} style={{ zIndex: 9999 }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit2 size={18} color="#059669" />
+                <h2 className="modal-title">Edit Invoice #{editBill.bill_no}</h2>
+              </div>
+              <button className="modal-close" onClick={() => setEditBill(null)}>×</button>
+            </div>
+            
+            <form onSubmit={handleSaveEdit} style={{ marginTop: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Customer Name *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editCustomerName}
+                    onChange={(e) => setEditCustomerName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Material / Product Name *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editProductName}
+                    onChange={(e) => setEditProductName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Quantity (Kg) *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-input"
+                    value={editQty}
+                    onChange={(e) => setEditQty(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Rate / Kg (₹) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-input"
+                    value={editRate}
+                    onChange={(e) => setEditRate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Rent / Transport (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    value={editRent}
+                    onChange={(e) => setEditRent(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Tax Toggles */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', margin: '8px 0 14px 0' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', backgroundColor: editCgstEnabled ? '#ecfdf5' : '#f8fafc' }}>
+                  <input type="checkbox" checked={editCgstEnabled} onChange={(e) => setEditCgstEnabled(e.target.checked)} />
+                  CGST 9%: ₹{editCgst.toLocaleString('en-IN')}
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', backgroundColor: editSgstEnabled ? '#ecfdf5' : '#f8fafc' }}>
+                  <input type="checkbox" checked={editSgstEnabled} onChange={(e) => setEditSgstEnabled(e.target.checked)} />
+                  SGST 9%: ₹{editSgst.toLocaleString('en-IN')}
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', backgroundColor: editTdsEnabled ? '#ecfdf5' : '#f8fafc' }}>
+                  <input type="checkbox" checked={editTdsEnabled} onChange={(e) => setEditTdsEnabled(e.target.checked)} />
+                  2% TDS: ₹{editTds.toLocaleString('en-IN')}
+                </label>
+              </div>
+
+              {/* Calculation Summary Box */}
+              <div style={{ backgroundColor: '#f1f5f9', padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>SUBTOTAL</span>
+                  <div style={{ fontSize: '14px', fontWeight: 800 }}>₹{editSubtotal.toLocaleString('en-IN')}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TAXABLE BASE</span>
+                  <div style={{ fontSize: '14px', fontWeight: 800 }}>₹{editBase.toLocaleString('en-IN')}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>NEW TOTAL AMOUNT</span>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#059669' }}>₹{editTotal.toLocaleString('en-IN')}</div>
+                </div>
+              </div>
+
+              {/* Payment Settlement */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Paid / Received Amount (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={editTotal}
+                    className="form-input"
+                    value={editPaidAmount}
+                    onChange={(e) => setEditPaidAmount(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Payment Mode</label>
+                  <select className="form-select" value={editPaymentMode} onChange={(e) => setEditPaymentMode(e.target.value)}>
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI / GPay</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Credit">Credit (Unpaid)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Remaining Balance Due</label>
+                  <div style={{ height: '36px', display: 'flex', alignItems: 'center', padding: '0 10px', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 800, color: editDue > 0 ? '#dc2626' : '#059669', fontFamily: 'monospace' }}>
+                    ₹{editDue.toLocaleString('en-IN')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Vehicle & Logistics */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Vehicle No.</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editVehicleNo}
+                    onChange={(e) => setEditVehicleNo(e.target.value.toUpperCase())}
+                    placeholder="e.g. TN12BA4452"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Driver Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editDriverName}
+                    onChange={(e) => setEditDriverName(e.target.value)}
+                    placeholder="Driver Name"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Invoice Date</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Notes / Remarks</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Optional notes..."
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditBill(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingEdit} style={{ backgroundColor: '#059669', borderColor: '#059669' }}>
+                  {savingEdit ? 'Updating...' : 'Save Changes'}
                 </button>
               </div>
             </form>

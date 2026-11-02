@@ -213,6 +213,23 @@ export default function VehiclesPage({ onVehicleUpdated }) {
     }
   };
 
+  const handleDeleteExpense = async (expenseId) => {
+    if (!window.confirm('Are you sure you want to delete this vehicle expense record? This will adjust the vehicle expense total.')) return;
+    try {
+      const res = await fetch(`/api/vehicles/expenses/${expenseId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete expense');
+      if (viewVehicleHistory) {
+        const hRes = await fetch(`/api/vehicles/${viewVehicleHistory.id}`);
+        const hData = await hRes.json();
+        setVehicleHistoryData(hData);
+      }
+      fetchVehicles();
+      if (onVehicleUpdated) onVehicleUpdated();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  };
+
   const handleViewHistory = async (veh) => {
     setViewVehicleHistory(veh);
     setHistoryTypeFilter('All');
@@ -1487,12 +1504,13 @@ export default function VehiclesPage({ onVehicleUpdated }) {
                         <th>Details & Remarks</th>
                         <th style={{ textAlign: 'center' }}>Payment Mode</th>
                         <th style={{ textAlign: 'right' }}>Amount (₹)</th>
+                        <th style={{ textAlign: 'center', width: '50px' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredExpenses.length === 0 ? (
                         <tr>
-                          <td colSpan="5" style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>
+                          <td colSpan="6" style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>
                             No expenses recorded matching the selected filter.
                           </td>
                         </tr>
@@ -1525,6 +1543,22 @@ export default function VehiclesPage({ onVehicleUpdated }) {
                             <td style={{ textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#0f172a' }}>
                               ₹{(Number(exp.amount) || 0).toLocaleString('en-IN')}
                             </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteExpense(exp.id)}
+                                title="Delete expense record"
+                                style={{
+                                  border: 'none',
+                                  background: 'none',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: '2px 4px'
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -1532,7 +1566,7 @@ export default function VehiclesPage({ onVehicleUpdated }) {
                     {filteredExpenses.length > 0 && (
                       <tfoot>
                         <tr style={{ backgroundColor: '#f8fafc', fontWeight: 800, borderTop: '2px solid #cbd5e1' }}>
-                          <td colSpan="4" style={{ textAlign: 'right', padding: '10px 12px', fontSize: '12px', color: '#0f172a' }}>
+                          <td colSpan="5" style={{ textAlign: 'right', padding: '10px 12px', fontSize: '12px', color: '#0f172a' }}>
                             TOTAL FILTERED EXPENSES:
                           </td>
                           <td style={{ textAlign: 'right', padding: '10px 12px', fontSize: '13px', color: '#059669', fontFamily: 'monospace' }}>

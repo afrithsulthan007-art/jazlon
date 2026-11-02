@@ -5,6 +5,7 @@ import {
   Plus, 
   DollarSign, 
   Trash2, 
+  Edit2,
   Download, 
   AlertTriangle, 
   CheckCircle2, 
@@ -51,6 +52,71 @@ export default function CustomersPage({ onCustomerUpdated, initialTab = 'all' })
   const [creditRef, setCreditRef] = useState('OPENING-BAL');
   const [creditNotes, setCreditNotes] = useState('Opening Balance / Handover Dues');
   const [savingCredit, setSavingCredit] = useState(false);
+
+  // Edit Customer Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editCustId, setEditCustId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editGstin, setEditGstin] = useState('');
+  const [savingEditCust, setSavingEditCust] = useState(false);
+
+  const handleOpenEditCustomer = (cust) => {
+    if (!cust) return;
+    setEditCustId(cust.id);
+    setEditName(cust.name || '');
+    setEditPhone(cust.phone || '');
+    setEditAddress(cust.address || '');
+    setEditGstin(cust.gstin || '');
+    setShowEditModal(true);
+  };
+
+  const handleEditCustomerSubmit = async (e) => {
+    e.preventDefault();
+    if (!editCustId || !editName.trim()) return;
+    try {
+      setSavingEditCust(true);
+      const res = await fetch(`/api/customers/${editCustId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName.trim(),
+          phone: editPhone.trim(),
+          address: editAddress.trim(),
+          gstin: editGstin.trim()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update customer');
+      setShowEditModal(false);
+      fetchCustomers(editCustId);
+      if (onCustomerUpdated) onCustomerUpdated();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSavingEditCust(false);
+    }
+  };
+
+  const handleDeleteLedgerItem = async (row) => {
+    if (row.type === 'BILL') {
+      alert('To delete or edit an invoice, please use the Invoices / Billing register.');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to delete this ${row.type.toLowerCase()} record? This will adjust the customer balance.`)) return;
+    try {
+      const endpoint = row.type === 'PAYMENT' 
+        ? `/api/customers/payments/${row.rawId}` 
+        : `/api/customers/adjustments/${row.rawId}`;
+      const res = await fetch(endpoint, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete transaction record');
+      fetchCustomers(selectedCustomerId);
+      if (onCustomerUpdated) onCustomerUpdated();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  };
 
   const fetchCustomers = async (preserveSelectedId = null) => {
     try {
@@ -313,6 +379,7 @@ export default function CustomersPage({ onCustomerUpdated, initialTab = 'all' })
       customerDetail.adjustments.forEach(a => {
         ledgerEntries.push({
           id: `adj-${a.id}`,
+          rawId: a.id,
           date: a.date,
           type: 'OPENING_BALANCE',
           ref: a.ref_no || 'OPENING-BAL',
@@ -327,6 +394,7 @@ export default function CustomersPage({ onCustomerUpdated, initialTab = 'all' })
       customerDetail.bills.forEach(b => {
         ledgerEntries.push({
           id: `bill-${b.id}`,
+          rawId: b.id,
           date: b.date,
           type: 'BILL',
           ref: b.bill_no,
@@ -341,6 +409,7 @@ export default function CustomersPage({ onCustomerUpdated, initialTab = 'all' })
       customerDetail.payments.forEach(p => {
         ledgerEntries.push({
           id: `pay-${p.id}`,
+          rawId: p.id,
           date: p.date,
           type: 'PAYMENT',
           ref: p.reference_no || 'Direct Pay',
@@ -755,7 +824,30 @@ export default function CustomersPage({ onCustomerUpdated, initialTab = 'all' })
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditCustomer(cust);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#059669',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        padding: '2px 6px'
+                      }}
+                      title="Edit Customer"
+                    >
+                      <Edit2 size={12} />
+                      Edit
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => handleDeleteCustomer(cust, e)}
@@ -896,6 +988,29 @@ export default function CustomersPage({ onCustomerUpdated, initialTab = 'all' })
 
                     <button
                       type="button"
+                      onClick={() => handleOpenEditCustomer(selectedCustomer)}
+                      style={{
+                        height: '34px',
+                        padding: '0 12px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        color: '#0f172a',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        cursor: 'pointer'
+                      }}
+                      title="Edit Customer"
+                    >
+                      <Edit2 size={13} color="#059669" />
+                      Edit Customer
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => handleDeleteCustomer(selectedCustomer)}
                       style={{
                         height: '34px',
@@ -987,18 +1102,19 @@ export default function CustomersPage({ onCustomerUpdated, initialTab = 'all' })
                         <th style={{ textAlign: 'right', padding: '10px 14px', fontWeight: 700, color: '#475569' }}>Debit (Bills)</th>
                         <th style={{ textAlign: 'right', padding: '10px 14px', fontWeight: 700, color: '#475569' }}>Credit (Paid)</th>
                         <th style={{ textAlign: 'right', padding: '10px 14px', fontWeight: 700, color: '#475569' }}>Balance</th>
+                        <th style={{ textAlign: 'center', padding: '10px 14px', fontWeight: 700, color: '#475569', width: '50px' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {detailLoading ? (
                         <tr>
-                          <td colSpan="5" style={{ textAlign: 'center', padding: '36px', color: '#94a3b8' }}>
+                          <td colSpan="6" style={{ textAlign: 'center', padding: '36px', color: '#94a3b8' }}>
                             Loading account statement...
                           </td>
                         </tr>
                       ) : ledgerEntries.length === 0 ? (
                         <tr>
-                          <td colSpan="5" style={{ textAlign: 'center', padding: '36px', color: '#94a3b8' }}>
+                          <td colSpan="6" style={{ textAlign: 'center', padding: '36px', color: '#94a3b8' }}>
                             No bills or payments recorded yet for this customer.
                           </td>
                         </tr>
@@ -1041,6 +1157,20 @@ export default function CustomersPage({ onCustomerUpdated, initialTab = 'all' })
                               fontFamily: 'monospace' 
                             }}>
                               ₹ {row.runningBalance.toLocaleString('en-IN')}
+                            </td>
+                            <td style={{ textAlign: 'center', padding: '10px 14px' }}>
+                              {row.type !== 'BILL' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteLedgerItem(row)}
+                                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '3px' }}
+                                  title={`Delete this ${row.type.toLowerCase()} record`}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              ) : (
+                                <span style={{ color: '#cbd5e1', fontSize: '11px' }}>—</span>
+                              )}
                             </td>
                           </tr>
                         ))
@@ -1315,7 +1445,75 @@ export default function CustomersPage({ onCustomerUpdated, initialTab = 'all' })
         </div>
       )}
 
-      {/* MODAL 3: ADD OUTSTANDING CREDIT / OPENING BALANCE */}
+      {/* MODAL 4: EDIT CUSTOMER */}
+      {showEditModal && (
+        <div className="modal-overlay" style={{ backdropFilter: 'blur(3px)', backgroundColor: 'rgba(15, 23, 42, 0.45)', zIndex: 9999 }} onClick={() => setShowEditModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '480px', borderRadius: '12px', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit2 size={18} color="#059669" />
+                <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: '#0f172a' }}>Edit Customer Profile</h2>
+              </div>
+              <button onClick={() => setShowEditModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+
+            <form onSubmit={handleEditCustomerSubmit}>
+              <div className="form-group">
+                <label className="form-label">Customer Name *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Phone Number</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="e.g. 9876543210"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Address / Zone</label>
+                <textarea
+                  className="form-input"
+                  rows="2"
+                  value={editAddress}
+                  onChange={(e) => setEditAddress(e.target.value)}
+                  placeholder="Billing / Delivery Address"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">GSTIN (Optional)</label>
+                <input
+                  type="text"
+                  className="form-input font-mono"
+                  value={editGstin}
+                  onChange={(e) => setEditGstin(e.target.value.toUpperCase())}
+                  placeholder="e.g. 33GWMPS0522P1ZZ"
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingEditCust} style={{ backgroundColor: '#059669', borderColor: '#059669' }}>
+                  {savingEditCust ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {showCreditModal && (
         <div className="modal-overlay" style={{ backdropFilter: 'blur(3px)', backgroundColor: 'rgba(15, 23, 42, 0.45)' }} onClick={() => setShowCreditModal(false)}>
           <div 

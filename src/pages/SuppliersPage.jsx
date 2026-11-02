@@ -13,6 +13,7 @@ import {
   ArrowDownToLine,
   Printer,
   Trash2,
+  Edit2,
   CheckCircle2,
   Download,
   MapPin,
@@ -62,6 +63,126 @@ export default function SuppliersPage({ onSupplierUpdated }) {
   const [payRef, setPayRef] = useState('');
   const [payNotes, setPayNotes] = useState('');
   const [savingPay, setSavingPay] = useState(false);
+
+  // Edit Supplier Modal
+  const [showEditSupplier, setShowEditSupplier] = useState(false);
+  const [editSupId, setEditSupId] = useState(null);
+  const [editSupName, setEditSupName] = useState('');
+  const [editSupCompany, setEditSupCompany] = useState('');
+  const [editSupPhone, setEditSupPhone] = useState('');
+  const [editSupAddress, setEditSupAddress] = useState('');
+  const [editSupGstin, setEditSupGstin] = useState('');
+  const [editSupMaterials, setEditSupMaterials] = useState('');
+  const [savingEditSup, setSavingEditSup] = useState(false);
+
+  // Edit Purchase Modal
+  const [editPurchaseItem, setEditPurchaseItem] = useState(null);
+  const [editPQty, setEditPQty] = useState('');
+  const [editPBoughtRate, setEditPBoughtRate] = useState('');
+  const [editPPaidAmount, setEditPPaidAmount] = useState('');
+  const [editPNotes, setEditPNotes] = useState('');
+  const [savingEditPurchase, setSavingEditPurchase] = useState(false);
+
+  const handleOpenEditSupplier = (sup) => {
+    if (!sup) return;
+    setEditSupId(sup.id);
+    setEditSupName(sup.name || '');
+    setEditSupCompany(sup.company_name || '');
+    setEditSupPhone(sup.phone || '');
+    setEditSupAddress(sup.address || '');
+    setEditSupGstin(sup.gstin || '');
+    setEditSupMaterials(sup.materials_supplied || '');
+    setShowEditSupplier(true);
+  };
+
+  const handleEditSupplierSubmit = async (e) => {
+    e.preventDefault();
+    if (!editSupId || !editSupName.trim()) return;
+    try {
+      setSavingEditSup(true);
+      const res = await fetch(`/api/suppliers/${editSupId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editSupName.trim(),
+          company_name: editSupCompany.trim(),
+          phone: editSupPhone.trim(),
+          address: editSupAddress.trim(),
+          gstin: editSupGstin.trim(),
+          materials_supplied: editSupMaterials.trim()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update supplier');
+      setShowEditSupplier(false);
+      fetchSuppliersAndProducts(editSupId);
+      if (onSupplierUpdated) onSupplierUpdated();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSavingEditSup(false);
+    }
+  };
+
+  const handleOpenEditPurchase = (p) => {
+    setEditPurchaseItem(p);
+    setEditPQty(p.quantity || '');
+    setEditPBoughtRate(p.bought_price_per_unit || '');
+    setEditPPaidAmount(p.paid_amount || '0');
+    setEditPNotes(p.notes || '');
+  };
+
+  const handleSaveEditPurchase = async (e) => {
+    e.preventDefault();
+    if (!editPurchaseItem) return;
+    try {
+      setSavingEditPurchase(true);
+      const qtyNum = Number(editPQty);
+      const rateNum = Number(editPBoughtRate);
+      const paidNum = Number(editPPaidAmount || 0);
+      const totalNum = Math.round(qtyNum * rateNum);
+      const balNum = Math.max(0, totalNum - paidNum);
+
+      const res = await fetch(`/api/suppliers/purchases/${editPurchaseItem.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_name: editPurchaseItem.product_name,
+          quantity: qtyNum,
+          unit: editPurchaseItem.unit || 'Kg',
+          bought_price_per_unit: rateNum,
+          total_amount: totalNum,
+          paid_amount: paidNum,
+          balance_due: balNum,
+          payment_mode: paidNum === 0 ? 'Credit' : 'Cash',
+          notes: editPNotes
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update purchase');
+      setEditPurchaseItem(null);
+      if (selectedSupplierId) loadSupplierDetail(selectedSupplierId);
+      fetchSuppliersAndProducts(selectedSupplierId);
+      if (onSupplierUpdated) onSupplierUpdated();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSavingEditPurchase(false);
+    }
+  };
+
+  const handleDeleteSupplierPayment = async (payId) => {
+    if (!window.confirm('Are you sure you want to delete this payment record? This will adjust the supplier credit balance.')) return;
+    try {
+      const res = await fetch(`/api/suppliers/payments/${payId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete payment');
+      if (selectedSupplierId) loadSupplierDetail(selectedSupplierId);
+      fetchSuppliersAndProducts(selectedSupplierId);
+      if (onSupplierUpdated) onSupplierUpdated();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  };
 
   const fetchSuppliersAndProducts = async (preserveSelectedId = null) => {
     try {
@@ -705,25 +826,51 @@ export default function SuppliersPage({ onSupplierUpdated }) {
                       )}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeleteSupplier(sup, e)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#ef4444',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                        padding: '2px 4px'
-                      }}
-                    >
-                      <Trash2 size={12} />
-                      Remove
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditSupplier(sup);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#059669',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          padding: '2px 4px'
+                        }}
+                        title="Edit Supplier"
+                      >
+                        <Edit2 size={12} />
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteSupplier(sup, e)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ef4444',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          padding: '2px 4px'
+                        }}
+                      >
+                        <Trash2 size={12} />
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -863,6 +1010,29 @@ export default function SuppliersPage({ onSupplierUpdated }) {
                     >
                       <Printer size={13} />
                       Print
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditSupplier(selectedSupplier)}
+                      style={{
+                        height: '34px',
+                        padding: '0 12px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        color: '#0f172a',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        cursor: 'pointer'
+                      }}
+                      title="Edit Supplier Profile"
+                    >
+                      <Edit2 size={13} color="#059669" />
+                      Edit Supplier
                     </button>
 
                     <button
@@ -1086,19 +1256,36 @@ export default function SuppliersPage({ onSupplierUpdated }) {
                               </span>
                             </td>
                             <td style={{ padding: '9px 12px', textAlign: 'center' }}>
-                              <button 
-                                onClick={() => handleDeletePurchase(p.id)}
-                                title="Cancel and reverse this purchase"
-                                style={{
-                                  border: 'none',
-                                  background: 'none',
-                                  color: '#ef4444',
-                                  cursor: 'pointer',
-                                  padding: '2px 4px'
-                                }}
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                              <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                <button 
+                                  type="button"
+                                  onClick={() => handleOpenEditPurchase(p)}
+                                  title="Edit inward purchase"
+                                  style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    color: '#059669',
+                                    cursor: 'pointer',
+                                    padding: '2px 4px'
+                                  }}
+                                >
+                                  <Edit2 size={13} />
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => handleDeletePurchase(p.id)}
+                                  title="Cancel and reverse this purchase"
+                                  style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    color: '#ef4444',
+                                    cursor: 'pointer',
+                                    padding: '2px 4px'
+                                  }}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -1119,11 +1306,12 @@ export default function SuppliersPage({ onSupplierUpdated }) {
                         <th style={{ textAlign: 'left', padding: '9px 12px', fontWeight: 700, color: '#475569' }}>Reference / UTR</th>
                         <th style={{ textAlign: 'left', padding: '9px 12px', fontWeight: 700, color: '#475569' }}>Notes</th>
                         <th style={{ textAlign: 'right', padding: '9px 12px', fontWeight: 700, color: '#475569' }}>Amount Paid (₹)</th>
+                        <th style={{ textAlign: 'center', padding: '9px 12px', fontWeight: 700, color: '#475569', width: '50px' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {supplierDetail?.payments?.length === 0 ? (
-                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>No payment records logged yet.</td></tr>
+                        <tr><td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>No payment records logged yet.</td></tr>
                       ) : (
                         supplierDetail?.payments?.map(pay => (
                           <tr key={pay.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -1133,6 +1321,22 @@ export default function SuppliersPage({ onSupplierUpdated }) {
                             <td style={{ padding: '9px 12px', color: '#64748b' }}>{pay.notes || '—'}</td>
                             <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 800, color: '#15803d' }}>
                               ₹{pay.amount.toLocaleString('en-IN')}
+                            </td>
+                            <td style={{ padding: '9px 12px', textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSupplierPayment(pay.id)}
+                                title="Delete payment entry"
+                                style={{
+                                  border: 'none',
+                                  background: 'none',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: '2px 4px'
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
                             </td>
                           </tr>
                         ))
@@ -1148,7 +1352,185 @@ export default function SuppliersPage({ onSupplierUpdated }) {
 
       </div>
 
-      {/* MODAL 1: ADD SUPPLIER */}
+      {/* MODAL 4: EDIT SUPPLIER */}
+      {showEditSupplier && (
+        <div className="modal-overlay" style={{ backdropFilter: 'blur(3px)', backgroundColor: 'rgba(15, 23, 42, 0.45)', zIndex: 9999 }} onClick={() => setShowEditSupplier(false)}>
+          <div className="modal-content" style={{ maxWidth: '440px', borderRadius: '12px', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit2 size={18} color="#059669" />
+                <h2 style={{ fontSize: '17px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
+                  Edit Supplier Profile
+                </h2>
+              </div>
+              <button onClick={() => setShowEditSupplier(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+
+            <form onSubmit={handleEditSupplierSubmit}>
+              <div className="form-group">
+                <label className="form-label">Contact Person / Name *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editSupName}
+                  onChange={(e) => setEditSupName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Company / Mill Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editSupCompany}
+                  onChange={(e) => setEditSupCompany(e.target.value)}
+                  placeholder="e.g. Jindal Steel / Tata Steel Mill"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Phone Number</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editSupPhone}
+                  onChange={(e) => setEditSupPhone(e.target.value)}
+                  placeholder="Mobile / Office number"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Address / Plant Location</label>
+                <textarea
+                  className="form-input"
+                  rows="2"
+                  value={editSupAddress}
+                  onChange={(e) => setEditSupAddress(e.target.value)}
+                  placeholder="Factory location, City, State"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">GSTIN (Optional)</label>
+                <input
+                  type="text"
+                  className="form-input font-mono"
+                  value={editSupGstin}
+                  onChange={(e) => setEditSupGstin(e.target.value.toUpperCase())}
+                  placeholder="e.g. 33AABCT3518Q1Z4"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Supplied Materials</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editSupMaterials}
+                  onChange={(e) => setEditSupMaterials(e.target.value)}
+                  placeholder="e.g. Heavy Melting Scrap, Boring, Cast Iron"
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditSupplier(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingEditSup} style={{ backgroundColor: '#059669', borderColor: '#059669' }}>
+                  {savingEditSup ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: EDIT INWARD PURCHASE */}
+      {editPurchaseItem && (
+        <div className="modal-overlay" style={{ backdropFilter: 'blur(3px)', backgroundColor: 'rgba(15, 23, 42, 0.45)', zIndex: 9999 }} onClick={() => setEditPurchaseItem(null)}>
+          <div className="modal-content" style={{ maxWidth: '440px', borderRadius: '12px', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit2 size={18} color="#059669" />
+                <h2 style={{ fontSize: '17px', fontWeight: 800, margin: 0, color: '#0f172a' }}>
+                  Edit Inward Stock #{editPurchaseItem.invoice_no}
+                </h2>
+              </div>
+              <button onClick={() => setEditPurchaseItem(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+
+            <form onSubmit={handleSaveEditPurchase}>
+              <div style={{ marginBottom: '12px' }}>
+                <label className="form-label">Material: <strong>{editPurchaseItem.product_name}</strong></label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                <div>
+                  <label className="form-label">Quantity ({editPurchaseItem.unit || 'Kg'}) *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-input"
+                    value={editPQty}
+                    onChange={(e) => setEditPQty(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Bought Rate (₹ / {editPurchaseItem.unit || 'Kg'}) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-input"
+                    value={editPBoughtRate}
+                    onChange={(e) => setEditPBoughtRate(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: '8px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Computed Total:</span>
+                <span style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', fontFamily: 'monospace' }}>
+                  ₹{Math.round((Number(editPQty) || 0) * (Number(editPBoughtRate) || 0)).toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Paid / Advanced Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="form-input"
+                  value={editPPaidAmount}
+                  onChange={(e) => setEditPPaidAmount(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Notes</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editPNotes}
+                  onChange={(e) => setEditPNotes(e.target.value)}
+                  placeholder="Optional notes..."
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditPurchaseItem(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingEditPurchase} style={{ backgroundColor: '#059669', borderColor: '#059669' }}>
+                  {savingEditPurchase ? 'Updating...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {showAddSupplier && (
         <div className="modal-overlay" style={{ backdropFilter: 'blur(3px)', backgroundColor: 'rgba(15, 23, 42, 0.45)' }} onClick={() => setShowAddSupplier(false)}>
           <div className="modal-content" style={{ maxWidth: '440px', borderRadius: '12px', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
