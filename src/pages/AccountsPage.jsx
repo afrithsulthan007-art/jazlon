@@ -433,6 +433,11 @@ export default function AccountsPage({ onAccountUpdated }) {
   const cgst = summary.cgst !== undefined ? summary.cgst : (taxes.netCgstPayable || taxes.cgstOutput || 0);
   const sgst = summary.sgst !== undefined ? summary.sgst : (taxes.netSgstPayable || taxes.sgstOutput || 0);
   const tds = summary.tds !== undefined ? summary.tds : (taxes.totalTds || 0);
+  const tdsSales = summary.tdsSales !== undefined ? summary.tdsSales : (taxes.totalTds || 0);
+  const tdsPurchases = summary.tdsPurchases !== undefined ? summary.tdsPurchases : 0;
+  const vehDiesel = operatingExpenses.diesel || 0;
+  const vehService = operatingExpenses.service || 0;
+  const vehOther = operatingExpenses.vehicleOther || 0;
   const vehicleCharges = summary.vehicleCharges !== undefined ? summary.vehicleCharges : ((operatingExpenses.diesel || 0) + (operatingExpenses.service || 0) + (operatingExpenses.vehicleOther || 0));
   const employeeSalaries = summary.employeeSalaries !== undefined ? summary.employeeSalaries : (operatingExpenses.employeeSalaries || 0);
   const totalOpExpenses = operatingExpenses.total !== undefined ? operatingExpenses.total : (vehicleCharges + employeeSalaries);
@@ -709,171 +714,187 @@ export default function AccountsPage({ onAccountUpdated }) {
         </div>
       </div>
 
-      {/* CORRECTED 7 KPI CARDS IN ACCORDANCE WITH USER FORMULAS */}
+      {/* EXECUTIVE KPI DASHBOARD: ROW 1 (REVENUE, BOUGHT & TAXES) */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', 
-        gap: '8px', 
-        marginBottom: '18px',
+        gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', 
+        gap: '10px', 
+        marginBottom: '10px',
         width: '100%'
       }}>
         
         {/* 1. REVENUE GENERATED (+) */}
-        <div className="stat-card" style={{ borderLeft: '3.5px solid #059669', padding: '9px 10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#059669', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>+ REVENUE</span>
-            <span style={{ fontSize: '9px', backgroundColor: '#ecfdf5', color: '#059669', padding: '1px 4px', borderRadius: '3px', fontWeight: 700 }}>Sales</span>
+        <div className="stat-card" style={{ borderLeft: '3.5px solid #059669', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#059669', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>+ REVENUE</span>
+            <span style={{ fontSize: '9px', backgroundColor: '#ecfdf5', color: '#059669', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>Sales</span>
           </div>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: '#059669', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#059669', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             ₹{totalRevenue.toLocaleString('en-IN')}
           </div>
-          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Total Sales Bills
+          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Total Sales Invoices
           </div>
         </div>
 
         {/* 2. BOUGHT PRICE (−) */}
-        <div className="stat-card" style={{ borderLeft: '3.5px solid #475569', padding: '9px 10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#475569', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>− BOUGHT</span>
-            <span style={{ fontSize: '9px', backgroundColor: '#f1f5f9', color: '#475569', padding: '1px 4px', borderRadius: '3px', fontWeight: 700 }}>Stock</span>
+        <div className="stat-card" style={{ borderLeft: '3.5px solid #475569', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#475569', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>− BOUGHT</span>
+            <span style={{ fontSize: '9px', backgroundColor: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>Stock</span>
           </div>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: '#334155', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#334155', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             ₹{costOfGoods.toLocaleString('en-IN')}
           </div>
-          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             Material & Stock Cost
           </div>
         </div>
 
         {/* 3. CGST (−) */}
-        <div className="stat-card" style={{ borderLeft: '3.5px solid #0284c7', padding: '9px 10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#0284c7', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>− CGST</span>
-            <span style={{ fontSize: '9px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '1px 4px', borderRadius: '3px', fontWeight: 700 }}>Central</span>
+        <div className="stat-card" style={{ borderLeft: '3.5px solid #0284c7', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#0284c7', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>− CGST</span>
+            <span style={{ fontSize: '9px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>Central 9%</span>
           </div>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: '#0284c7', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#0284c7', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             ₹{cgst.toLocaleString('en-IN')}
           </div>
-          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Central Tax (9%)
+          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Out ₹{(taxes.cgstOutput || 0).toLocaleString('en-IN')} · In ₹{(taxes.cgstInput || 0).toLocaleString('en-IN')}
           </div>
         </div>
 
         {/* 4. SGST (−) */}
-        <div className="stat-card" style={{ borderLeft: '3.5px solid #4f46e5', padding: '9px 10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#4f46e5', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>− SGST</span>
-            <span style={{ fontSize: '9px', backgroundColor: '#eef2ff', color: '#4338ca', padding: '1px 4px', borderRadius: '3px', fontWeight: 700 }}>State</span>
+        <div className="stat-card" style={{ borderLeft: '3.5px solid #4f46e5', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#4f46e5', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>− SGST</span>
+            <span style={{ fontSize: '9px', backgroundColor: '#eef2ff', color: '#4338ca', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>State 9%</span>
           </div>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: '#4f46e5', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#4f46e5', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             ₹{sgst.toLocaleString('en-IN')}
           </div>
-          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            State Tax (9%)
+          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Out ₹{(taxes.sgstOutput || 0).toLocaleString('en-IN')} · In ₹{(taxes.sgstInput || 0).toLocaleString('en-IN')}
           </div>
         </div>
 
-        {/* 5. NET PROFIT (=) [Revenue − Bought] */}
-        <div className="stat-card" style={{ 
-          borderLeft: `3.5px solid ${netProfit >= 0 ? '#10b981' : '#dc2626'}`, 
-          backgroundColor: netProfit >= 0 ? '#f0fdf4' : '#fef2f2',
-          padding: '9px 10px' 
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '9.5px', fontWeight: 800, color: netProfit >= 0 ? '#166534' : '#991b1b', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>= NET PROFIT</span>
-            <span style={{ 
-              fontSize: '9px', 
-              backgroundColor: netProfit >= 0 ? '#dcfce7' : '#fee2e2', 
-              color: netProfit >= 0 ? '#15803d' : '#b91c1c', 
-              padding: '1px 4px', 
-              borderRadius: '3px', 
-              fontWeight: 800 
-            }}>
-              {netMargin}%
-            </span>
+        {/* 5. TDS (−) */}
+        <div className="stat-card" style={{ borderLeft: '3.5px solid #d97706', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#d97706', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>− TDS</span>
+            <span style={{ fontSize: '9px', backgroundColor: '#fef3c7', color: '#b45309', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>Tax 2%</span>
           </div>
-          <div style={{ fontSize: '15px', fontWeight: 900, color: netProfit >= 0 ? '#15803d' : '#dc2626', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            ₹{netProfit.toLocaleString('en-IN')}
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#d97706', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            ₹{tds.toLocaleString('en-IN')}
           </div>
-          <div 
-            style={{ fontSize: '10px', color: netProfit >= 0 ? '#166534' : '#991b1b', marginTop: '2px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-            title="Revenue - (Bought + CGST + SGST + TDS + Salaries + Vehicle/Ops)"
-          >
-            Rev − Costs & Taxes
-          </div>
-        </div>
-
-        {/* 6. TOTAL COLLECTED */}
-        <div className="stat-card" style={{ borderLeft: '3.5px solid #0ea5e9', padding: '9px 10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#0284c7', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>COLLECTED</span>
-            <span style={{ fontSize: '9px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '1px 4px', borderRadius: '3px', fontWeight: 700 }}>Inflow</span>
-          </div>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: '#0284c7', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            ₹{(collections.totalCollected || 0).toLocaleString('en-IN')}
-          </div>
-          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Cash + UPI / Bank
-          </div>
-        </div>
-
-        {/* 7. PENDING CREDIT DUE */}
-        <div className="stat-card" style={{ borderLeft: '3.5px solid #ef4444', padding: '9px 10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#dc2626', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>CREDIT DUE</span>
-            <span style={{ fontSize: '9px', backgroundColor: '#fef2f2', color: '#b91c1c', padding: '1px 4px', borderRadius: '3px', fontWeight: 700 }}>Pending</span>
-          </div>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            ₹{(collections.credit || 0).toLocaleString('en-IN')}
-          </div>
-          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Customer Dues
+          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+               title={"Sales TDS: ₹" + (tdsSales || 0).toLocaleString('en-IN') + " | Purchases TDS: ₹" + (tdsPurchases || 0).toLocaleString('en-IN')}>
+            {tdsPurchases > 0 ? "Sales ₹" + (tdsSales || 0).toLocaleString('en-IN') + " · Pur ₹" + (tdsPurchases || 0).toLocaleString('en-IN') : "2% Withheld on Billed Sales"}
           </div>
         </div>
 
       </div>
 
-      {/* KPI DEDUCTIONS SUB-STRIP: TDS, SALARIES, VEHICLE CHARGES & TOTAL DEDUCTIONS */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '8px',
-        backgroundColor: '#ffffff',
-        border: '1px solid #e2e8f0',
-        borderRadius: '8px',
-        padding: '8px 14px',
+      {/* EXECUTIVE KPI DASHBOARD: ROW 2 (OPERATIONS, NET PROFIT & CASH FLOW) */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', 
+        gap: '10px', 
         marginBottom: '18px',
-        fontSize: '11.5px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+        width: '100%'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#059669' }} />
-          <span style={{ fontWeight: 800, color: '#334155' }}>Deductions Breakdown:</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-          <div>
-            <span style={{ color: '#64748b' }}>− TDS: </span>
-            <span style={{ fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>₹{tds.toLocaleString('en-IN')}</span>
+
+        {/* 6. SALARIES GIVEN (−) */}
+        <div className="stat-card" style={{ borderLeft: '3.5px solid #7c3aed', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#7c3aed', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>− SALARIES</span>
+            <span style={{ fontSize: '9px', backgroundColor: '#f5f3ff', color: '#6d28d9', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>Payroll</span>
           </div>
-          <div style={{ color: '#cbd5e1' }}>•</div>
-          <div>
-            <span style={{ color: '#64748b' }}>− Salaries Given: </span>
-            <span style={{ fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>₹{employeeSalaries.toLocaleString('en-IN')}</span>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#7c3aed', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            ₹{employeeSalaries.toLocaleString('en-IN')}
           </div>
-          <div style={{ color: '#cbd5e1' }}>•</div>
-          <div>
-            <span style={{ color: '#64748b' }}>− Diesel & Vehicle Ops: </span>
-            <span style={{ fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>₹{vehicleCharges.toLocaleString('en-IN')}</span>
-          </div>
-          <div style={{ color: '#cbd5e1' }}>•</div>
-          <div style={{ backgroundColor: '#fef2f2', padding: '2px 8px', borderRadius: '4px', border: '1px solid #fee2e2' }}>
-            <span style={{ color: '#991b1b', fontWeight: 700 }}>Total Period Deductions: </span>
-            <span style={{ fontWeight: 800, color: '#dc2626', fontFamily: 'monospace' }}>₹{totalDeductions.toLocaleString('en-IN')}</span>
+          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+               title="Total wages, advances & settlements paid to employees in this period (excludes credit dues)">
+            Staff Wages & Advance Given
           </div>
         </div>
+
+        {/* 7. VEHICLE EXPENSES (−) */}
+        <div className="stat-card" style={{ borderLeft: '3.5px solid #ea580c', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#ea580c', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>− VEHICLE EXP</span>
+            <span style={{ fontSize: '9px', backgroundColor: '#fff7ed', color: '#c2410c', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>Fleet</span>
+          </div>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#ea580c', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            ₹{vehicleCharges.toLocaleString('en-IN')}
+          </div>
+          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+               title={"Diesel: ₹" + (vehDiesel || 0).toLocaleString('en-IN') + " | Service: ₹" + (vehService || 0).toLocaleString('en-IN') + " | Other: ₹" + (vehOther || 0).toLocaleString('en-IN')}>
+            {vehicleCharges > 0 
+              ? "Diesel ₹" + (vehDiesel || 0).toLocaleString('en-IN') + " · Serv ₹" + (vehService || 0).toLocaleString('en-IN')
+              : "Diesel, Service & Fleet Ops"}
+          </div>
+        </div>
+
+        {/* 8. NET PROFIT (=) [Revenue − (Bought + Taxes + Salaries + Vehicle Exp)] */}
+        <div className="stat-card" style={{ 
+          borderLeft: "3.5px solid " + (netProfit >= 0 ? '#10b981' : '#dc2626'), 
+          backgroundColor: netProfit >= 0 ? '#f0fdf4' : '#fef2f2',
+          padding: '10px 12px' 
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: netProfit >= 0 ? '#166534' : '#991b1b', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>= NET PROFIT</span>
+            <span style={{ 
+              fontSize: '9px', 
+              backgroundColor: netProfit >= 0 ? '#dcfce7' : '#fee2e2', 
+              color: netProfit >= 0 ? '#15803d' : '#b91c1c', 
+              padding: '1px 5px', 
+              borderRadius: '4px', 
+              fontWeight: 800 
+            }}>
+              {netMargin}%
+            </span>
+          </div>
+          <div style={{ fontSize: '16px', fontWeight: 900, color: netProfit >= 0 ? '#15803d' : '#dc2626', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            ₹{netProfit.toLocaleString('en-IN')}
+          </div>
+          <div 
+            style={{ fontSize: '10.5px', color: netProfit >= 0 ? '#166534' : '#991b1b', marginTop: '3px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+            title={"Formula: Revenue (₹" + totalRevenue.toLocaleString('en-IN') + ") − [Bought (₹" + costOfGoods.toLocaleString('en-IN') + ") + CGST (₹" + cgst.toLocaleString('en-IN') + ") + SGST (₹" + sgst.toLocaleString('en-IN') + ") + TDS (₹" + tds.toLocaleString('en-IN') + ") + Salaries (₹" + employeeSalaries.toLocaleString('en-IN') + ") + Vehicle/Ops (₹" + vehicleCharges.toLocaleString('en-IN') + ")]"}
+          >
+            Rev − All Costs & Taxes
+          </div>
+        </div>
+
+        {/* 9. TOTAL COLLECTED */}
+        <div className="stat-card" style={{ borderLeft: '3.5px solid #0ea5e9', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#0284c7', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>COLLECTED</span>
+            <span style={{ fontSize: '9px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>Inflow</span>
+          </div>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#0284c7', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            ₹{(collections.totalCollected || 0).toLocaleString('en-IN')}
+          </div>
+          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Cash: ₹{(collections.cash || 0).toLocaleString('en-IN')} · Dig: ₹{((collections.upi || 0) + (collections.bank || 0)).toLocaleString('en-IN')}
+          </div>
+        </div>
+
+        {/* 10. PENDING CREDIT DUE */}
+        <div className="stat-card" style={{ borderLeft: '3.5px solid #ef4444', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#dc2626', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>CREDIT DUE</span>
+            <span style={{ fontSize: '9px', backgroundColor: '#fef2f2', color: '#b91c1c', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>Pending</span>
+          </div>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            ₹{(collections.credit || 0).toLocaleString('en-IN')}
+          </div>
+          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Customer Active Dues
+          </div>
+        </div>
+
       </div>
 
       {/* ANALYTICS SECTION ROW 1: TOP PRODUCTS (PIE CHART) & AMOUNT COLLECTED (PIE CHART) */}

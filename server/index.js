@@ -2090,6 +2090,8 @@ app.get('/api/accounts', async (req, res) => {
         cgst: cgstDeduction,
         sgst: sgstDeduction,
         tds: tdsDeduction,
+        tdsSales: salesRow.totalTdsOutput,
+        tdsPurchases: purchasesRow.totalTdsInput,
         totalTaxes,
         vehicleCharges,
         employeeSalaries: totalSalaries,
