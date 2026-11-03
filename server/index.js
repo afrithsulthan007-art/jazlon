@@ -49,6 +49,69 @@ if (!process.env.VERCEL) {
 }
 
 // -----------------------------------------------------------------------------
+// 0. AUTHENTICATION & USERS API
+// -----------------------------------------------------------------------------
+const crypto = require('crypto');
+const hashPassword = (pwd) => crypto.createHash('sha256').update(String(pwd)).digest('hex');
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const user = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanEmail);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const hashedInput = hashPassword(password);
+    const isMatch = (user.password === password) || (user.password === hashedInput);
+
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const emailHeader = req.headers['x-user-email'];
+    if (emailHeader) {
+      const user = await db.prepare('SELECT id, email, name, role FROM users WHERE LOWER(TRIM(email)) = ?').get(emailHeader.trim().toLowerCase());
+      if (user) {
+        return res.json({ user });
+      }
+    }
+    res.json({ user: null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// -----------------------------------------------------------------------------
 // 1. PRODUCTS / MATERIALS API
 // -----------------------------------------------------------------------------
 app.get('/api/products', async (req, res) => {

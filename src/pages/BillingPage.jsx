@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import InvoicePrintModal from '../components/InvoicePrintModal';
 
-export default function BillingPage({ onBillCreated, nextBillNo }) {
+export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) {
   // Vehicle Selection Type: 'fleet' or 'others'
   const [vehicleType, setVehicleType] = useState('fleet'); // 'fleet' | 'others'
   const [vehicleId, setVehicleId] = useState('');
@@ -56,7 +56,7 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [previousActiveMode, setPreviousActiveMode] = useState('Cash');
-  const [billerName, setBillerName] = useState('Admin');
+  const [billerName, setBillerName] = useState(() => currentUser?.name || (currentUser?.role === 'biller' ? 'Biller' : 'Admin'));
   const [notes, setNotes] = useState('');
 
   // Dropdown Data
@@ -205,6 +205,14 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
   useEffect(() => {
     loadFormData();
   }, []);
+
+  useEffect(() => {
+    if (currentUser?.name) {
+      setBillerName(currentUser.name);
+    } else if (currentUser?.role === 'biller') {
+      setBillerName('Biller');
+    }
+  }, [currentUser]);
 
   // Handle Vehicle Selection
   const handleSelectCompanyVehicle = (id) => {

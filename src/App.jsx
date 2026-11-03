@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
+import LoginPage from './pages/LoginPage';
 import BillingPage from './pages/BillingPage';
 import InvoicesPage from './pages/InvoicesPage';
 import ProductsPage from './pages/ProductsPage';
@@ -11,6 +12,15 @@ import SuppliersPage from './pages/SuppliersPage';
 import AccountsPage from './pages/AccountsPage';
 
 export default function App() {
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('jazlan_auth_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
   const [activePage, setActivePage] = useState('billing');
   const [nextBillNo, setNextBillNo] = useState('JS001');
   const [counts, setCounts] = useState({
@@ -21,6 +31,23 @@ export default function App() {
     employees: 0,
     suppliers: 0
   });
+
+  // Guard routes for biller role: strictly limit to billing and invoices
+  useEffect(() => {
+    if (user?.role === 'biller' && activePage !== 'billing' && activePage !== 'invoices') {
+      setActivePage('billing');
+    }
+  }, [user, activePage]);
+
+  const handleLogout = () => {
+    try {
+      fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    } catch (e) {}
+    localStorage.removeItem('jazlan_auth_user');
+    localStorage.removeItem('jazlan_auth_token');
+    setUser(null);
+    setActivePage('billing');
+  };
 
   const fetchGlobalData = async () => {
     try {
@@ -57,12 +84,21 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchGlobalData();
-  }, [activePage]);
+    if (user) {
+      fetchGlobalData();
+    }
+  }, [activePage, user]);
 
   const handleBillCreated = () => {
     fetchGlobalData();
   };
+
+  // If user is not authenticated, render Login Page
+  if (!user) {
+    return <LoginPage onLogin={(loggedUser) => setUser(loggedUser)} />;
+  }
+
+  const isBiller = user.role === 'biller';
 
   return (
     <div className="app-container">
@@ -71,6 +107,8 @@ export default function App() {
         activePage={activePage} 
         setActivePage={setActivePage} 
         counts={counts}
+        currentUser={user}
+        onLogout={handleLogout}
       />
 
       {/* MAIN VIEWPORT */}
@@ -80,54 +118,59 @@ export default function App() {
           setActivePage={setActivePage} 
           onRefresh={fetchGlobalData}
           nextBillNo={nextBillNo}
+          currentUser={user}
+          onLogout={handleLogout}
         />
 
         <main>
           {activePage === 'billing' && (
             <BillingPage 
               onBillCreated={handleBillCreated} 
-              nextBillNo={nextBillNo} 
+              nextBillNo={nextBillNo}
+              currentUser={user}
             />
           )}
 
           {activePage === 'invoices' && (
             <InvoicesPage 
-              onInvoiceUpdated={fetchGlobalData} 
+              onInvoiceUpdated={fetchGlobalData}
+              currentUser={user}
             />
           )}
 
-          {activePage === 'products' && (
+          {/* Admin-only pages */}
+          {!isBiller && activePage === 'products' && (
             <ProductsPage 
               onProductUpdated={fetchGlobalData} 
             />
           )}
 
-          {(activePage === 'customers' || activePage === 'credit-customers') && (
+          {!isBiller && (activePage === 'customers' || activePage === 'credit-customers') && (
             <CustomersPage 
               onCustomerUpdated={fetchGlobalData} 
               initialTab="all"
             />
           )}
 
-          {activePage === 'vehicles' && (
+          {!isBiller && activePage === 'vehicles' && (
             <VehiclesPage 
               onVehicleUpdated={fetchGlobalData} 
             />
           )}
 
-          {activePage === 'employees' && (
+          {!isBiller && activePage === 'employees' && (
             <EmployeesPage 
               onEmployeeUpdated={fetchGlobalData} 
             />
           )}
 
-          {activePage === 'suppliers' && (
+          {!isBiller && activePage === 'suppliers' && (
             <SuppliersPage 
               onSupplierUpdated={fetchGlobalData} 
             />
           )}
 
-          {activePage === 'accounts' && (
+          {!isBiller && activePage === 'accounts' && (
             <AccountsPage 
               onAccountUpdated={fetchGlobalData} 
             />

@@ -101,6 +101,85 @@ async function runE2ESuite() {
 
   try {
     // =========================================================================
+    // SUITE 0: User Authentication & Role-Based Access Control
+    // =========================================================================
+    console.log('\n--- SUITE 0: User Authentication & Role-Based Access Control ---');
+    await page.goto(baseUrl, { waitUntil: 'networkidle2' });
+    await new Promise(r => setTimeout(r, 1000));
+
+    // Clear any previous session
+    await page.evaluate(() => {
+      localStorage.clear();
+      window.location.reload();
+    });
+    await new Promise(r => setTimeout(r, 1200));
+
+    // Check login page presence
+    const hasLoginEmail = await page.evaluate(() => !!document.getElementById('login-email'));
+    assert(hasLoginEmail, 'TC00a: Unauthenticated user sees JAZLAN login portal');
+
+    // Test invalid login
+    await page.type('#login-email', 'admin@jazlon.com');
+    await page.type('#login-password', 'WrongPassword123');
+    await page.click('#btn-login-submit');
+    await new Promise(r => setTimeout(r, 800));
+    const hasErrorAlert = await page.evaluate(() => document.body.innerText.includes('Invalid email or password'));
+    assert(hasErrorAlert, 'TC00b: Invalid credentials shows error notification');
+
+    // Test biller login: bill@jazlon.com / admin@123
+    await page.click('#btn-demo-biller');
+    await page.click('#btn-login-submit');
+    await new Promise(r => setTimeout(r, 1500));
+
+    // Verify biller permissions: ONLY billing and invoices
+    const billerPages = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('.sidebar-nav .nav-link'));
+      return links.map(l => l.getAttribute('data-page')).filter(Boolean);
+    });
+    assert(
+      billerPages.includes('billing') && 
+      billerPages.includes('invoices') && 
+      !billerPages.includes('products') && 
+      !billerPages.includes('customers') && 
+      !billerPages.includes('vehicles') && 
+      !billerPages.includes('employees') && 
+      !billerPages.includes('suppliers') && 
+      !billerPages.includes('accounts'),
+      'TC00c: bill@jazlon.com is strictly restricted to ONLY billing and invoices pages'
+    );
+
+    // Verify biller name in billing terminal
+    const billerNameVal = await page.evaluate(() => {
+      const input = Array.from(document.querySelectorAll('input')).find(i => i.value === 'Biller' || i.value === 'Admin');
+      return input ? input.value : null;
+    });
+    assert(billerNameVal === 'Biller', 'TC00d: Billing terminal defaults biller name to Biller for bill@jazlon.com');
+
+    // Logout from biller
+    const loggedOut = await page.evaluate(() => {
+      const btn = document.getElementById('btn-sidebar-logout') || document.getElementById('btn-topbar-logout');
+      if (btn) {
+        btn.click();
+        return true;
+      }
+      return false;
+    });
+    assert(loggedOut, 'TC00e: Logout button executes successfully');
+    await new Promise(r => setTimeout(r, 1200));
+
+    // Login as admin@jazlon.com / Jaz$lon@
+    await page.click('#btn-demo-admin');
+    await page.click('#btn-login-submit');
+    await new Promise(r => setTimeout(r, 1500));
+
+    // Verify admin has all 8 pages
+    const adminPages = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('.sidebar-nav .nav-link'));
+      return links.map(l => l.getAttribute('data-page')).filter(Boolean);
+    });
+    assert(adminPages.length === 8 && adminPages.includes('accounts'), 'TC00f: admin@jazlon.com has full access to all 8 modules');
+
+    // =========================================================================
     // SUITE 1: Billing Terminal, Tax Calculations & Invoice Viewer
     // =========================================================================
     console.log('\n--- SUITE 1: Billing Terminal, Tax Calculations & Invoice Viewer ---');

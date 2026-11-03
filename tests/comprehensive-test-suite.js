@@ -1072,6 +1072,52 @@ async function runAllTests() {
     assert.strictEqual(empList.data.find(e => e.id === empId), undefined);
   });
 
+  // ---------------------------------------------------------------------------
+  // SUITE 12: USER AUTHENTICATION & ROLE-BASED ACCESS
+  // ---------------------------------------------------------------------------
+  console.log('\n--- SUITE 12: User Authentication & Seeded Accounts ---');
+  await test('TC86: POST /api/auth/login succeeds for admin@jazlon.com with password Jaz$lon@', async () => {
+    const res = await request('POST', '/api/auth/login', {
+      email: 'admin@jazlon.com',
+      password: 'Jaz$lon@'
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.data.success, true);
+    assert.strictEqual(res.data.user.role, 'admin');
+    assert.strictEqual(res.data.user.email, 'admin@jazlon.com');
+  });
+
+  await test('TC87: POST /api/auth/login succeeds for bill@jazlon.com with password admin@123', async () => {
+    const res = await request('POST', '/api/auth/login', {
+      email: 'bill@jazlon.com',
+      password: 'admin@123'
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.data.success, true);
+    assert.strictEqual(res.data.user.role, 'biller');
+    assert.strictEqual(res.data.user.email, 'bill@jazlon.com');
+  });
+
+  await test('TC88: POST /api/auth/login rejects wrong password with 401', async () => {
+    const res = await request('POST', '/api/auth/login', {
+      email: 'admin@jazlon.com',
+      password: 'WrongPassword999'
+    });
+    assert.strictEqual(res.status, 401);
+    assert.strictEqual(res.data.error, 'Invalid email or password');
+  });
+
+  await test('TC89: POST /api/auth/login rejects missing credentials with 400', async () => {
+    const res = await request('POST', '/api/auth/login', { email: 'admin@jazlon.com' });
+    assert.strictEqual(res.status, 400);
+  });
+
+  await test('TC90: POST /api/auth/logout succeeds with 200', async () => {
+    const res = await request('POST', '/api/auth/logout', {});
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.data.success, true);
+  });
+
   // Clean up test data
   console.log('\n--- Cleaning up temporary test data ---');
   try {

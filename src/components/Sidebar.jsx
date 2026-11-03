@@ -13,10 +13,13 @@ import {
   Smartphone,
   Monitor,
   X,
-  Share2
+  Share2,
+  LogOut,
+  ShieldCheck,
+  User
 } from 'lucide-react';
 
-export default function Sidebar({ activePage, setActivePage, counts = {} }) {
+export default function Sidebar({ activePage, setActivePage, counts = {}, currentUser, onLogout }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
@@ -63,16 +66,19 @@ export default function Sidebar({ activePage, setActivePage, counts = {} }) {
     }
   };
 
-  const menuItems = [
-    { id: 'billing', label: 'Billing', icon: Receipt, badge: 'New Bill' },
-    { id: 'invoices', label: 'Invoices', icon: FileText, count: counts.invoices },
-    { id: 'products', label: 'Products', icon: Package, count: counts.products },
-    { id: 'customers', label: 'Customers & Credits', icon: Users, count: counts.customers, badge: counts.creditCustomers > 0 ? `${counts.creditCustomers} Dues` : null },
-    { id: 'vehicles', label: 'Vehicles', icon: Truck, count: counts.vehicles },
-    { id: 'employees', label: 'Employees', icon: UserCheck, count: counts.employees },
-    { id: 'suppliers', label: 'Suppliers', icon: Building2, count: counts.suppliers, badge: counts.creditSuppliers > 0 ? `${counts.creditSuppliers} Dues` : null },
-    { id: 'accounts', label: 'Accounts & Profit', icon: PieChart, badge: 'Financials' },
+  const allMenuItems = [
+    { id: 'billing', label: 'Billing', icon: Receipt, badge: 'New Bill', roles: ['admin', 'biller'] },
+    { id: 'invoices', label: 'Invoices', icon: FileText, count: counts.invoices, roles: ['admin', 'biller'] },
+    { id: 'products', label: 'Products', icon: Package, count: counts.products, roles: ['admin'] },
+    { id: 'customers', label: 'Customers & Credits', icon: Users, count: counts.customers, badge: counts.creditCustomers > 0 ? `${counts.creditCustomers} Dues` : null, roles: ['admin'] },
+    { id: 'vehicles', label: 'Vehicles', icon: Truck, count: counts.vehicles, roles: ['admin'] },
+    { id: 'employees', label: 'Employees', icon: UserCheck, count: counts.employees, roles: ['admin'] },
+    { id: 'suppliers', label: 'Suppliers', icon: Building2, count: counts.suppliers, badge: counts.creditSuppliers > 0 ? `${counts.creditSuppliers} Dues` : null, roles: ['admin'] },
+    { id: 'accounts', label: 'Accounts & Profit', icon: PieChart, badge: 'Financials', roles: ['admin'] },
   ];
+
+  const userRole = currentUser?.role || 'admin';
+  const menuItems = allMenuItems.filter(item => !item.roles || item.roles.includes(userRole));
 
   return (
     <aside className="sidebar">
@@ -113,6 +119,84 @@ export default function Sidebar({ activePage, setActivePage, counts = {} }) {
           );
         })}
       </nav>
+
+      {/* USER PROFILE & LOGOUT STRIP */}
+      {currentUser && (
+        <div style={{
+          padding: '10px 12px',
+          borderTop: '1px solid #e2e8f0',
+          backgroundColor: '#f8fafc',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '7px',
+              backgroundColor: userRole === 'admin' ? '#ecfdf5' : '#eff6ff',
+              border: `1px solid ${userRole === 'admin' ? '#a7f3d0' : '#bfdbfe'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              {userRole === 'admin' ? (
+                <ShieldCheck size={16} color="#059669" />
+              ) : (
+                <User size={16} color="#2563eb" />
+              )}
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#0f172a' }}>
+                  {currentUser.name || (userRole === 'admin' ? 'Admin' : 'Biller')}
+                </span>
+                <span style={{
+                  fontSize: '9.5px',
+                  fontWeight: 700,
+                  padding: '1px 5px',
+                  borderRadius: '3px',
+                  backgroundColor: userRole === 'admin' ? '#dcfce7' : '#dbeafe',
+                  color: userRole === 'admin' ? '#166534' : '#1e40af'
+                }}>
+                  {userRole.toUpperCase()}
+                </span>
+              </div>
+              <div style={{ fontSize: '10.5px', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {currentUser.email}
+              </div>
+            </div>
+          </div>
+          {onLogout && (
+            <button
+              type="button"
+              id="btn-sidebar-logout"
+              onClick={onLogout}
+              title="Sign Out / Change User"
+              style={{
+                background: 'none',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                padding: '5px 7px',
+                cursor: 'pointer',
+                color: '#64748b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#ffffff',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#fca5a5'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+            >
+              <LogOut size={14} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* PWA INSTALL BUTTON IN SIDE PANEL */}
       <div style={{ padding: '8px 10px', borderTop: '1px solid #edf2ee', backgroundColor: '#ffffff' }}>

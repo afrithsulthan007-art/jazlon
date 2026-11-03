@@ -212,6 +212,16 @@ const schema = [
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(191) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'biller',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
 ];
 
@@ -242,6 +252,24 @@ async function initMySQL(config) {
     }
   }
   console.log('Created all indexes.');
+
+  // Seed Default Users
+  const crypto = require('crypto');
+  const hashPassword = (pwd) => crypto.createHash('sha256').update(String(pwd)).digest('hex');
+
+  await conn.query(`
+    INSERT INTO users (email, password, name, role)
+    VALUES (?, ?, 'Admin', 'admin')
+    ON DUPLICATE KEY UPDATE password = VALUES(password), role = 'admin', name = 'Admin'
+  `, ['admin@jazlon.com', hashPassword('Jaz$lon@')]);
+
+  await conn.query(`
+    INSERT INTO users (email, password, name, role)
+    VALUES (?, ?, 'Biller', 'biller')
+    ON DUPLICATE KEY UPDATE password = VALUES(password), role = 'biller', name = 'Biller'
+  `, ['bill@jazlon.com', hashPassword('admin@123')]);
+
+  console.log('Seeded default users: admin@jazlon.com & bill@jazlon.com');
 
   const [tables] = await conn.query('SHOW TABLES');
   console.log('Verified tables in DB:', tables.map(t => Object.values(t)[0]));
