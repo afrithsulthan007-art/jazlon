@@ -7,12 +7,12 @@ function numberToWords(num) {
   const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
   const n = Math.floor(Math.abs(Number(num) || 0));
-  if (n === 0) return 'Zero';
+  if (n === 0 || !isFinite(n)) return 'Zero';
 
   function convertTwoDigits(val) {
-    if (val < 20) return a[val];
-    const tens = b[Math.floor(val / 10)];
-    const units = a[val % 10];
+    if (val < 20) return a[val] || '';
+    const tens = b[Math.floor(val / 10)] || '';
+    const units = a[val % 10] || '';
     return tens + (units ? '-' + units : '');
   }
 
@@ -21,13 +21,13 @@ function numberToWords(num) {
     const hundreds = Math.floor(val / 100);
     const rem = val % 100;
     if (hundreds > 0) {
-      str += a[hundreds] + ' Hundred';
+      str += (a[hundreds] || '') + ' Hundred';
       if (rem > 0) str += ' ';
     }
     if (rem > 0) {
       str += convertTwoDigits(rem);
     }
-    return str;
+    return str.trim();
   }
 
   let result = '';
@@ -39,7 +39,7 @@ function numberToWords(num) {
   rem = rem % 1000;
 
   if (crores > 0) {
-    result += convertTwoDigits(crores) + ' Crore ';
+    result += (crores < 100 ? convertTwoDigits(crores) : convertThreeDigits(crores)) + ' Crore ';
   }
   if (lakhs > 0) {
     result += convertTwoDigits(lakhs) + ' Lakhs ';
@@ -51,7 +51,7 @@ function numberToWords(num) {
     result += convertThreeDigits(rem) + ' ';
   }
 
-  return result.trim();
+  return result.trim() || 'Zero';
 }
 
 export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
@@ -74,16 +74,17 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
   };
 
   // Calculations & Fallbacks based on exact provided format
-  const displayInvNo = bill.bill_no?.startsWith('SMT/') 
-    ? bill.bill_no 
-    : (bill.bill_no ? `SMT/26-27/${bill.bill_no.replace(/^[A-Za-z]+0*/, '') || bill.bill_no}` : 'SMT/26-27/118');
+  const billNoStr = String(bill.bill_no || '');
+  const displayInvNo = billNoStr.startsWith('SMT/') 
+    ? billNoStr 
+    : (billNoStr ? `SMT/26-27/${billNoStr.replace(/^[A-Za-z]+0*/, '') || billNoStr}` : 'SMT/26-27/118');
 
   const displayDate = formatDate(bill.date);
   const displaySupplyDate = formatDate(bill.date_of_supply || bill.date);
 
   // Address details
   const customerName = bill.customer_name || customer?.name || 'Sathyam Traders';
-  const customerAddress = customer?.address || '19/02\nT.H. Road, Tondiarpet\nChennai 600081';
+  const customerAddress = customer?.address || bill.customer_address || '19/02\nT.H. Road, Tondiarpet\nChennai 600081';
   const customerGstin = customer?.gstin || bill.customer_gstin || '33GWMPS0522P1ZZ';
 
   // Item details
@@ -164,8 +165,10 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
             </button>
             <button 
               type="button" 
-              className="btn btn-secondary btn-sm" 
+              className="btn btn-secondary btn-sm invoice-modal-close-btn" 
               onClick={onClose}
+              aria-label="Close"
+              title="Close Invoice Modal"
               style={{ padding: '6px 10px' }}
             >
               <X size={16} />

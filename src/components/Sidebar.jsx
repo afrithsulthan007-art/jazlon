@@ -95,6 +95,7 @@ export default function Sidebar({ activePage, setActivePage, counts = {} }) {
           return (
             <button
               key={item.id}
+              data-page={item.id}
               onClick={() => setActivePage(item.id)}
               className={`nav-link ${isActive ? 'active' : ''}`}
             >

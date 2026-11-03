@@ -397,8 +397,8 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
 
   // Preview Current Bill Form Before Submitting
   const handlePreviewCurrentBill = () => {
-    const custObj = customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
-    const prodObj = products.find(p => p.name.toLowerCase() === productName.toLowerCase());
+    const custObj = customers.find(c => c.name && customerName && c.name.toLowerCase() === customerName.toLowerCase());
+    const prodObj = products.find(p => p.name && productName && p.name.toLowerCase() === productName.toLowerCase());
 
     const previewData = {
       bill_no: nextBillNo || 'JS001',
@@ -1604,7 +1604,14 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
       {showPrintModal && createdBill && (
         <InvoicePrintModal 
           bill={createdBill}
-          customer={selectedCustomer || { name: customerName, phone: customerPhone, address: customerAddress, gstin: customerGstin }}
+          customer={
+            customers.find(c => c.id === createdBill.customer_id || (c.name && createdBill.customer_name && c.name.toLowerCase() === createdBill.customer_name.toLowerCase())) || { 
+              name: createdBill.customer_name || customerName, 
+              phone: customerPhone, 
+              address: customerAddress, 
+              gstin: customerGstin 
+            }
+          }
           onClose={() => setShowPrintModal(false)}
           onEdit={(b) => handleOpenEditBill(b)}
         />
