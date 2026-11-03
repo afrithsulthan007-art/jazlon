@@ -1846,11 +1846,14 @@ app.get('/api/accounts', async (req, res) => {
 
     // Financial calculations
     // User Specification:
-    // Revenue generated = summation of Total Bill Amount over desired period
-    // Bought = summation of all stocks from product page (quantity in tons * respective bought rate)
-    // Net Profit = Revenue - Bought
+    // Every data should be the summation of all invoice individual data:
+    // - Revenue = summation of total bill amounts from all invoices in period
+    // - Bought = summation of (total kg * bought price per kg) from all invoices in period
+    // - CGST = summation of CGST from all invoices in period
+    // - SGST = summation of SGST from all invoices in period
+    // - TDS = summation of TDS from all invoices in period
     const totalRevenue = salesRow.totalRevenue;
-    const costOfGoods = totalStockBought; // Bought price from stock inventory
+    const costOfGoods = salesRow.costOfSoldGoods; // Sum of (quantity * bought_price_per_unit) from all invoices
     const grossProfit = Math.round(totalRevenue - costOfGoods);
 
     // Vehicle Charges (Diesel, Maintenance & Service, Other vehicle expenses)
@@ -1858,7 +1861,7 @@ app.get('/api/accounts', async (req, res) => {
     const totalSalaries = employeeSalaries;
     const totalOperatingExpenses = vehicleCharges + totalSalaries;
 
-    // Taxes Breakdown
+    // Taxes Breakdown from invoices
     const cgstOutput = salesRow.totalCgstOutput;
     const sgstOutput = salesRow.totalSgstOutput;
     const cgstInput = purchasesRow.totalCgstInput;
@@ -1866,11 +1869,11 @@ app.get('/api/accounts', async (req, res) => {
     const netCgstPayable = Math.max(0, cgstOutput - cgstInput);
     const netSgstPayable = Math.max(0, sgstOutput - sgstInput);
     const totalGstPayable = netCgstPayable + netSgstPayable;
-    const totalTds = salesRow.totalTdsOutput + purchasesRow.totalTdsInput;
+    const totalTds = salesRow.totalTdsOutput; // Sum of invoice TDS
 
-    // Deductions & Taxes
-    const cgstDeduction = netCgstPayable > 0 ? netCgstPayable : cgstOutput;
-    const sgstDeduction = netSgstPayable > 0 ? netSgstPayable : sgstOutput;
+    // Deductions & Taxes from invoices
+    const cgstDeduction = cgstOutput;
+    const sgstDeduction = sgstOutput;
     const tdsDeduction = totalTds;
     const totalTaxes = cgstDeduction + sgstDeduction + tdsDeduction;
 
@@ -2076,7 +2079,8 @@ app.get('/api/accounts', async (req, res) => {
       upi: totalUpi,
       bank: totalBank,
       totalCollected,
-      credit: allPendingCredit,
+      credit: billCreditPeriod,
+      allCustomerCredit: allPendingCredit,
       billCreditPeriod
     };
 

@@ -741,13 +741,13 @@ export default function AccountsPage({ onAccountUpdated }) {
         <div className="stat-card" style={{ borderLeft: '3.5px solid #475569', padding: '10px 12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '10px', fontWeight: 800, color: '#475569', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>− BOUGHT</span>
-            <span style={{ fontSize: '9px', backgroundColor: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>Stock</span>
+            <span style={{ fontSize: '9px', backgroundColor: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>Bought</span>
           </div>
           <div style={{ fontSize: '16px', fontWeight: 800, color: '#334155', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             ₹{costOfGoods.toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Material & Stock Cost
+            Kg × Bought Rate/Kg
           </div>
         </div>
 
@@ -761,7 +761,7 @@ export default function AccountsPage({ onAccountUpdated }) {
             ₹{cgst.toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Out ₹{(taxes.cgstOutput || 0).toLocaleString('en-IN')} · In ₹{(taxes.cgstInput || 0).toLocaleString('en-IN')}
+            Invoice Central Tax (9%)
           </div>
         </div>
 
@@ -775,7 +775,7 @@ export default function AccountsPage({ onAccountUpdated }) {
             ₹{sgst.toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Out ₹{(taxes.sgstOutput || 0).toLocaleString('en-IN')} · In ₹{(taxes.sgstInput || 0).toLocaleString('en-IN')}
+            Invoice State Tax (9%)
           </div>
         </div>
 
@@ -790,7 +790,7 @@ export default function AccountsPage({ onAccountUpdated }) {
           </div>
           <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                title={"Sales TDS: ₹" + (tdsSales || 0).toLocaleString('en-IN') + " | Purchases TDS: ₹" + (tdsPurchases || 0).toLocaleString('en-IN')}>
-            {tdsPurchases > 0 ? "Sales ₹" + (tdsSales || 0).toLocaleString('en-IN') + " · Pur ₹" + (tdsPurchases || 0).toLocaleString('en-IN') : "2% Withheld on Billed Sales"}
+            Invoice TDS Withheld (2%)
           </div>
         </div>
 
@@ -891,7 +891,7 @@ export default function AccountsPage({ onAccountUpdated }) {
             ₹{(collections.credit || 0).toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Customer Active Dues
+            Invoice Balance Receivables
           </div>
         </div>
 
