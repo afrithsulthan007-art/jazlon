@@ -554,7 +554,18 @@ app.post('/api/employees', async (req, res) => {
       join_date || new Date().toISOString().split('T')[0]
     );
 
-    const employee = await db.prepare('SELECT * FROM employees WHERE id = ?').get(info.lastInsertRowid);
+    const empId = info.lastInsertRowid;
+    const initialCredit = Number(current_credit_balance || 0);
+    if (initialCredit > 0) {
+      const joinDate = join_date || new Date().toISOString().split('T')[0];
+      await db.prepare(`
+        INSERT INTO employee_payments (employee_id, date, payment_type, amount, month_year, payment_mode, notes)
+        VALUES (?, ?, 'Credit Due', ?, 'Opening Balance', 'Credit', 'Opening Credit Due Balance')
+      `).run(empId, joinDate, initialCredit);
+      await recalculateEmployee(empId);
+    }
+
+    const employee = await db.prepare('SELECT * FROM employees WHERE id = ?').get(empId);
     res.status(201).json(employee);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -675,6 +686,8 @@ app.post('/api/employees/:id/credit', async (req, res) => {
       WHERE id = ?
     `).run(creditAmt, id);
 
+    await recalculateEmployee(id);
+
     const updatedEmp = await db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
     const payments = await db.prepare('SELECT * FROM employee_payments WHERE employee_id = ? ORDER BY date DESC, id DESC').all(id);
 
@@ -715,6 +728,21 @@ app.delete('/api/employees/payments/:paymentId', async (req, res) => {
     await db.prepare('DELETE FROM employee_payments WHERE id = ?').run(paymentId);
     await db.prepare("DELETE FROM accounts_ledger WHERE reference_type = 'EmployeePayment' AND reference_id = ?").run(paymentId);
     
+    // Adjust employee credit balance if deleting credit or payment
+    if (pay.payment_type === 'Credit Due') {
+      await db.prepare(`
+        UPDATE employees 
+        SET current_credit_balance = GREATEST(0, current_credit_balance - ?) 
+        WHERE id = ?
+      `).run(Number(pay.amount || 0), pay.employee_id);
+    } else if (pay.payment_type === 'Salary') {
+      await db.prepare(`
+        UPDATE employees 
+        SET current_credit_balance = current_credit_balance + ? 
+        WHERE id = ?
+      `).run(Number(pay.amount || 0), pay.employee_id);
+    }
+
     // Recalculate employee balance
     await recalculateEmployee(pay.employee_id);
     res.json({ success: true });
@@ -1694,7 +1722,7 @@ app.get('/api/accounts', async (req, res) => {
 
     // 4. Employee Salaries & Wages
     const employeeSalaries = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE ${salaryFilter}
+      SELECT COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' AND ${salaryFilter}
     `).get(...generalDateParams))?.total || 0;
 
     // 5. Total Customer Credit Pending across all customers
@@ -1788,7 +1816,7 @@ app.get('/api/accounts', async (req, res) => {
       `).all(from_date, to_date)).map(v => [v.date, v.total]));
 
       const salByDay = Object.fromEntries((await db.prepare(`
-        SELECT date, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE date BETWEEN ? AND ? GROUP BY date
+        SELECT date, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' AND date BETWEEN ? AND ? GROUP BY date
       `).all(from_date, to_date)).map(s => [s.date, s.total]));
 
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -1836,7 +1864,7 @@ app.get('/api/accounts', async (req, res) => {
       `).all()).map(v => [v.year, v.total]));
 
       const salByYear = Object.fromEntries((await db.prepare(`
-        SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM employee_payments GROUP BY strftime('%Y', date)
+        SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' GROUP BY strftime('%Y', date)
       `).all()).map(s => [s.year, s.total]));
 
       for (let y = currentYear - 4; y <= currentYear; y++) {
@@ -1880,7 +1908,7 @@ app.get('/api/accounts', async (req, res) => {
       `).all()).map(v => [v.month, v.total]));
 
       const salByMonth = Object.fromEntries((await db.prepare(`
-        SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM employee_payments GROUP BY strftime('%Y-%m', date)
+        SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' GROUP BY strftime('%Y-%m', date)
       `).all()).map(s => [s.month, s.total]));
 
       const now = new Date();

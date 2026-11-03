@@ -285,7 +285,15 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
     return list;
   }, [empPayments, slipDatePreset, slipFromDate, slipToDate]);
 
-  const totalFilteredPayments = filteredPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const totalFilteredPaid = filteredPayments
+    .filter(p => p.payment_type !== 'Credit Due')
+    .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+  const totalFilteredCreditDue = filteredPayments
+    .filter(p => p.payment_type === 'Credit Due')
+    .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+  const totalFilteredPayments = totalFilteredPaid;
 
   // Export Employee Payment Slip / History to CSV (Excel format)
   const handleExportSlipCSV = () => {
@@ -297,9 +305,10 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
     const headers = [
       'Date',
       'Month / Period',
+      'Entry Type',
       'Payment Mode',
       'Notes / Remarks',
-      'Amount Paid (Rs)'
+      'Amount (Rs)'
     ];
 
     const escapeCsv = (val) => {
@@ -311,19 +320,32 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
     const rows = filteredPayments.map((p) => [
       escapeCsv(p.date),
       escapeCsv(p.month_year || ''),
-      escapeCsv(p.payment_mode || 'Cash'),
+      escapeCsv(p.payment_type === 'Credit Due' ? 'Credit Due (Accrued)' : 'Salary Paid'),
+      escapeCsv(p.payment_mode || (p.payment_type === 'Credit Due' ? 'Credit' : 'Cash')),
       escapeCsv(p.notes || ''),
       Number(p.amount) || 0
     ].join(','));
 
-    // Total Row
+    // Total Rows
     rows.push([
       '""',
       '""',
       '""',
-      '"TOTAL SALARIES PAID"',
-      totalFilteredPayments
+      '""',
+      '"TOTAL ACTUAL SALARIES PAID"',
+      totalFilteredPaid
     ].join(','));
+
+    if (totalFilteredCreditDue > 0) {
+      rows.push([
+        '""',
+        '""',
+        '""',
+        '""',
+        '"TOTAL CREDIT DUES ACCRUED"',
+        totalFilteredCreditDue
+      ].join(','));
+    }
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -358,15 +380,20 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
     else if (slipDatePreset === '1year') rangeLabel = 'Last 1 Year (1 Year)';
     else if (slipDatePreset === 'custom') rangeLabel = `${slipFromDate} to ${slipToDate}`;
 
-    const tableRows = filteredPayments.map(p => `
+    const tableRows = filteredPayments.map(p => {
+      const isCredit = p.payment_type === 'Credit Due';
+      return `
       <tr>
         <td style="padding: 8px 10px; border: 1px solid #cbd5e1; white-space: nowrap;">${p.date}</td>
         <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${p.month_year || '—'}</td>
-        <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${p.payment_mode || 'Cash'}</td>
+        <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${isCredit ? 'Credit Due' : (p.payment_mode || 'Cash')}</td>
         <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${p.notes || '—'}</td>
-        <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: right; font-weight: bold;">₹${(Number(p.amount) || 0).toLocaleString('en-IN')}</td>
+        <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: right; font-weight: bold; color: ${isCredit ? '#b45309' : '#15803d'};">
+          ${isCredit ? '+' : ''}₹${(Number(p.amount) || 0).toLocaleString('en-IN')}${isCredit ? ' (Due)' : ''}
+        </td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     const wordHtml = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -416,9 +443,19 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
           <tbody>
             ${tableRows}
             <tr class="total-row">
-              <td colspan="4" style="text-align: right;">TOTAL DISBURSED SALARIES (${filteredPayments.length} PAYMENTS):</td>
-              <td style="text-align: right;">₹${totalFilteredPayments.toLocaleString('en-IN')}</td>
+              <td colspan="4" style="text-align: right;">TOTAL DISBURSED SALARIES:</td>
+              <td style="text-align: right;">₹${totalFilteredPaid.toLocaleString('en-IN')}</td>
             </tr>
+            ${totalFilteredCreditDue > 0 ? `
+            <tr style="background: #fffbeb; font-weight: bold;">
+              <td colspan="4" style="text-align: right; color: #b45309; padding: 10px; border: 1px solid #fde68a;">TOTAL CREDIT DUES ACCRUED:</td>
+              <td style="text-align: right; color: #b45309; padding: 10px; border: 1px solid #fde68a;">₹${totalFilteredCreditDue.toLocaleString('en-IN')}</td>
+            </tr>
+            <tr style="background: #fef2f2; font-weight: bold;">
+              <td colspan="4" style="text-align: right; color: #b91c1c; padding: 10px; border: 1px solid #fecaca;">REMAINING OUTSTANDING CREDIT DUE:</td>
+              <td style="text-align: right; color: #b91c1c; padding: 10px; border: 1px solid #fecaca;">₹${(viewEmp?.current_credit_balance || 0).toLocaleString('en-IN')}</td>
+            </tr>
+            ` : ''}
           </tbody>
         </table>
       </body>
@@ -1025,9 +1062,19 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
             )}
 
             {/* LIVE SUMMARY STRIP */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0 6px 0', fontSize: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0 6px 0', fontSize: '12px', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ color: '#334155' }}>
-                Showing <strong>{filteredPayments.length}</strong> payment records • Total Disbursed: <strong style={{ color: '#059669', fontSize: '13px', fontFamily: 'monospace' }}>₹{totalFilteredPayments.toLocaleString('en-IN')}</strong>
+                Showing <strong>{filteredPayments.length}</strong> records • Total Paid: <strong style={{ color: '#059669', fontSize: '13px', fontFamily: 'monospace' }}>₹{totalFilteredPaid.toLocaleString('en-IN')}</strong>
+                {totalFilteredCreditDue > 0 && (
+                  <span style={{ marginLeft: '10px', color: '#b45309' }}>
+                    • Total Due Accrued: <strong style={{ fontFamily: 'monospace' }}>₹{totalFilteredCreditDue.toLocaleString('en-IN')}</strong>
+                  </span>
+                )}
+                {viewEmp && (
+                  <span style={{ marginLeft: '10px', color: (viewEmp.current_credit_balance || 0) > 0 ? '#b91c1c' : '#059669', fontWeight: 700 }}>
+                    • Remaining Due: <strong style={{ fontFamily: 'monospace' }}>₹{(viewEmp.current_credit_balance || 0).toLocaleString('en-IN')}</strong>
+                  </span>
+                )}
               </div>
 
               {slipDatePreset !== 'all' && (
@@ -1063,9 +1110,9 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
                       <tr style={{ backgroundColor: '#f8fafc' }}>
                         <th>Date</th>
                         <th>Month / Period</th>
-                        <th style={{ textAlign: 'center' }}>Mode</th>
+                        <th style={{ textAlign: 'center' }}>Type / Mode</th>
                         <th>Notes / Remarks</th>
-                        <th style={{ textAlign: 'right' }}>Amount Paid (₹)</th>
+                        <th style={{ textAlign: 'right' }}>Amount (₹)</th>
                         <th style={{ textAlign: 'center', width: '50px' }}>Action</th>
                       </tr>
                     </thead>
@@ -1077,49 +1124,74 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
                           </td>
                         </tr>
                       ) : (
-                        filteredPayments.map(p => (
-                          <tr key={p.id}>
-                            <td style={{ whiteSpace: 'nowrap', fontWeight: 600, color: '#334155' }}>{p.date}</td>
-                            <td>{p.month_year || '—'}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <span style={{ padding: '2px 7px', backgroundColor: '#f1f5f9', borderRadius: '4px', fontSize: '11px', color: '#475569', fontWeight: 600 }}>
-                                {p.payment_mode || 'Cash'}
-                              </span>
-                            </td>
-                            <td>{p.notes || '—'}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#0f172a' }}>
-                              ₹{p.amount.toLocaleString('en-IN')}
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteEmployeePayment(p.id)}
-                                title="Delete payment record"
-                                style={{
-                                  border: 'none',
-                                  background: 'none',
-                                  color: '#ef4444',
-                                  cursor: 'pointer',
-                                  padding: '2px 4px'
-                                }}
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
+                        filteredPayments.map(p => {
+                          const isCredit = p.payment_type === 'Credit Due';
+                          return (
+                            <tr key={p.id}>
+                              <td style={{ whiteSpace: 'nowrap', fontWeight: 600, color: '#334155' }}>{p.date}</td>
+                              <td>{p.month_year || '—'}</td>
+                              <td style={{ textAlign: 'center' }}>
+                                {isCredit ? (
+                                  <span style={{ padding: '2px 7px', backgroundColor: '#fef3c7', border: '1px solid #fde68a', borderRadius: '4px', fontSize: '11px', color: '#b45309', fontWeight: 700 }}>
+                                    Credit Due
+                                  </span>
+                                ) : (
+                                  <span style={{ padding: '2px 7px', backgroundColor: '#ecfdf5', border: '1px solid #bbf7d0', borderRadius: '4px', fontSize: '11px', color: '#047857', fontWeight: 700 }}>
+                                    Paid ({p.payment_mode || 'Cash'})
+                                  </span>
+                                )}
+                              </td>
+                              <td>{p.notes || '—'}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 800, fontFamily: 'monospace' }}>
+                                {isCredit ? (
+                                  <span style={{ color: '#b45309' }}>+₹{p.amount.toLocaleString('en-IN')} (Due)</span>
+                                ) : (
+                                  <span style={{ color: '#15803d' }}>₹{p.amount.toLocaleString('en-IN')}</span>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteEmployeePayment(p.id)}
+                                  title="Delete payment record"
+                                  style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    color: '#ef4444',
+                                    cursor: 'pointer',
+                                    padding: '2px 4px'
+                                  }}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                     {filteredPayments.length > 0 && (
                       <tfoot>
                         <tr style={{ backgroundColor: '#f8fafc', fontWeight: 800, borderTop: '2px solid #cbd5e1' }}>
-                          <td colSpan="5" style={{ textAlign: 'right', padding: '10px 12px', fontSize: '12px', color: '#0f172a' }}>
-                            TOTAL FILTERED SALARIES PAID:
+                          <td colSpan="4" style={{ textAlign: 'right', padding: '10px 12px', fontSize: '12px', color: '#0f172a' }}>
+                            TOTAL ACTUAL SALARIES PAID:
                           </td>
                           <td style={{ textAlign: 'right', padding: '10px 12px', fontSize: '13px', color: '#059669', fontFamily: 'monospace' }}>
-                            ₹{totalFilteredPayments.toLocaleString('en-IN')}
+                            ₹{totalFilteredPaid.toLocaleString('en-IN')}
                           </td>
+                          <td></td>
                         </tr>
+                        {totalFilteredCreditDue > 0 && (
+                          <tr style={{ backgroundColor: '#fffbeb', fontWeight: 700 }}>
+                            <td colSpan="4" style={{ textAlign: 'right', padding: '8px 12px', fontSize: '11.5px', color: '#92400e' }}>
+                              TOTAL CREDIT DUES ACCRUED:
+                            </td>
+                            <td style={{ textAlign: 'right', padding: '8px 12px', fontSize: '12px', color: '#b45309', fontFamily: 'monospace' }}>
+                              ₹{totalFilteredCreditDue.toLocaleString('en-IN')}
+                            </td>
+                            <td></td>
+                          </tr>
+                        )}
                       </tfoot>
                     )}
                   </table>

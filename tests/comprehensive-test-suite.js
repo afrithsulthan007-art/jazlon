@@ -447,6 +447,41 @@ async function runAllTests() {
     assert.strictEqual(Number(emp.total_paid_salary), 23000);
   });
 
+  await test('TC36a: POST /api/employees/:id/credit adds credit due without inflating total_paid_salary', async () => {
+    // Add 82000 credit due
+    const res = await request('POST', `/api/employees/${testEmployeeId}/credit`, {
+      amount: 82000,
+      date: '2026-11-03',
+      month_year: 'October 2026',
+      notes: 'Outstanding salary credit accrued'
+    });
+    assert([200, 201].includes(res.status));
+    const empRes = await request('GET', '/api/employees');
+    const emp = empRes.data.find(e => e.id === testEmployeeId);
+    // Total paid salary must STILL be 23000, NOT 105000!
+    assert.strictEqual(Number(emp.total_paid_salary), 23000);
+    // Credit balance must reflect 82000
+    assert.strictEqual(Number(emp.current_credit_balance), 82000);
+  });
+
+  await test('TC36b: Paying 10000 against 82000 credit reduces due to 72000 and adds ONLY 10000 to total paid', async () => {
+    const res = await request('POST', `/api/employees/${testEmployeeId}/pay`, {
+      payment_type: 'Salary',
+      date: '2026-11-03',
+      amount: 10000,
+      month_year: 'October 2026',
+      payment_mode: 'Cash',
+      notes: 'Partial payment against credit due'
+    });
+    assert([200, 201].includes(res.status));
+    const empRes = await request('GET', '/api/employees');
+    const emp = empRes.data.find(e => e.id === testEmployeeId);
+    // Total paid salary must increase by ONLY 10000: 23000 + 10000 = 33000 (NEVER 82000 + 10000 + 23000!)
+    assert.strictEqual(Number(emp.total_paid_salary), 33000);
+    // Due must be exactly 82000 - 10000 = 72000
+    assert.strictEqual(Number(emp.current_credit_balance), 72000);
+  });
+
   // ---------------------------------------------------------------------------
   // SUITE 6: SUPPLIERS & ACCOUNTS PAYABLE (Tests 37 - 42)
   // ---------------------------------------------------------------------------

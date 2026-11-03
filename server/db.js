@@ -159,7 +159,9 @@ async function recalculateVehicle(vehicleId) {
 
 async function recalculateEmployee(employeeId) {
   const [rows] = await pool.query(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE employee_id = ?
+    SELECT COALESCE(SUM(amount), 0) as total 
+    FROM employee_payments 
+    WHERE employee_id = ? AND payment_type != 'Credit Due'
   `, [employeeId]);
   const totalPaid = rows[0] ? Number(rows[0].total) : 0;
 
