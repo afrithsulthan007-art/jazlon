@@ -6,7 +6,9 @@ import {
   Eye, 
   EyeOff, 
   AlertCircle,
-  LogIn
+  ArrowRight,
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 
 export default function LoginPage({ onLogin }) {
@@ -56,194 +58,110 @@ export default function LoginPage({ onLogin }) {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #e2e8f0 100%)',
-      padding: '20px',
-      fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '420px',
-        backgroundColor: '#ffffff',
-        borderRadius: '18px',
-        boxShadow: '0 20px 45px -10px rgba(15, 23, 42, 0.15), 0 8px 16px -6px rgba(15, 23, 42, 0.08)',
-        border: '1px solid #e2e8f0',
-        overflow: 'hidden'
-      }}>
-        {/* TOP BRAND BANNER */}
-        <div style={{
-          backgroundColor: '#064e3b',
-          backgroundImage: 'linear-gradient(135deg, #064e3b 0%, #047857 100%)',
-          padding: '32px 28px 26px',
-          color: '#ffffff',
-          textAlign: 'center'
-        }}>
-          <div style={{
-            width: '56px',
-            height: '56px',
-            borderRadius: '14px',
-            backgroundColor: 'rgba(255, 255, 255, 0.15)',
-            backdropFilter: 'blur(8px)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: '12px',
-            border: '1px solid rgba(255, 255, 255, 0.25)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-          }}>
-            <Receipt size={30} color="#ffffff" />
-          </div>
-          <h1 style={{ margin: '0 0 4px', fontSize: '24px', fontWeight: 900, letterSpacing: '0.5px' }}>
-            JAZLAN
-          </h1>
-          <p style={{ margin: 0, fontSize: '13px', color: '#a7f3d0', fontWeight: 500 }}>
-            Steels & Accounts Terminal
-          </p>
-        </div>
+    <div className="login-page-wrapper">
+      <div className="login-card">
+        {/* TOP ACCENT LINE */}
+        <div className="login-card-accent" />
 
-        {/* BODY FORM */}
-        <div style={{ padding: '30px 28px 34px' }}>
+        <div className="login-card-body">
+          {/* BRAND HEADER */}
+          <div className="login-brand-header">
+            <div className="login-brand-icon-box">
+              <Receipt size={28} color="#ffffff" strokeWidth={2.2} />
+            </div>
+            <h1 className="login-brand-title">JAZLAN</h1>
+            <p className="login-brand-subtitle">Steels & Accounts Terminal</p>
+          </div>
+
+          {/* ERROR ALERT */}
           {error && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              backgroundColor: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#b91c1c',
-              padding: '11px 14px',
-              borderRadius: '10px',
-              fontSize: '13px',
-              fontWeight: 600,
-              marginBottom: '20px'
-            }}>
+            <div className="login-error-alert" role="alert">
               <AlertCircle size={18} style={{ flexShrink: 0 }} />
               <div>{error}</div>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          {/* FORM */}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* EMAIL FIELD */}
-            <div>
-              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+            <div className="login-input-group">
+              <label htmlFor="login-email" className="login-label">
                 Email Address
               </label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={17} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <div className="login-input-wrapper">
+                <Mail size={18} className="login-input-icon" />
                 <input
                   type="email"
                   id="login-email"
+                  name="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   required
                   autoFocus
-                  style={{
-                    width: '100%',
-                    padding: '11px 14px 11px 38px',
-                    borderRadius: '9px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '13.5px',
-                    color: '#0f172a',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    transition: 'border-color 0.15s ease'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#059669'}
-                  onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                  className="login-input"
                 />
               </div>
             </div>
 
             {/* PASSWORD FIELD */}
-            <div>
-              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+            <div className="login-input-group">
+              <label htmlFor="login-password" className="login-label">
                 Password
               </label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={17} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <div className="login-input-wrapper">
+                <Lock size={18} className="login-input-icon" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="login-password"
+                  name="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
-                  style={{
-                    width: '100%',
-                    padding: '11px 40px 11px 38px',
-                    borderRadius: '9px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '13.5px',
-                    color: '#0f172a',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    transition: 'border-color 0.15s ease'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#059669'}
-                  onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                  className="login-input"
+                  style={{ paddingRight: '42px' }}
                 />
                 <button
                   type="button"
+                  className="login-password-toggle"
                   onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: '#94a3b8',
-                    padding: 0
-                  }}
                   title={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            {/* SIGN IN SUBMIT BUTTON */}
+            {/* SUBMIT BUTTON */}
             <button
               type="submit"
               id="btn-login-submit"
               disabled={loading}
-              style={{
-                marginTop: '8px',
-                width: '100%',
-                padding: '12px',
-                borderRadius: '9px',
-                backgroundColor: '#059669',
-                backgroundImage: 'linear-gradient(to right, #059669, #047857)',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '14px',
-                fontWeight: 800,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)',
-                transition: 'all 0.15s ease',
-                opacity: loading ? 0.8 : 1
-              }}
+              className="btn-login-submit"
             >
               {loading ? (
-                <span>Authenticating...</span>
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>Signing In...</span>
+                </>
               ) : (
                 <>
-                  <LogIn size={18} />
                   <span>Sign In</span>
+                  <ArrowRight size={18} />
                 </>
               )}
             </button>
           </form>
+
+          {/* FOOTER */}
+          <div className="login-card-footer">
+            <ShieldCheck size={14} style={{ color: '#10b981' }} />
+            <span>Secured Terminal · Role-Based Access</span>
+          </div>
         </div>
       </div>
     </div>
