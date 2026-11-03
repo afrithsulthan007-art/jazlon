@@ -118,16 +118,30 @@ async function runE2ESuite() {
     const hasLoginEmail = await page.evaluate(() => !!document.getElementById('login-email'));
     assert(hasLoginEmail, 'TC00a: Unauthenticated user sees JAZLAN login portal');
 
+    // Helper to reliably set React controlled inputs
+    async function fillLoginForm(userEmail, userPass) {
+      await page.evaluate((e, p) => {
+        const emailInput = document.querySelector('#login-email');
+        const passInput = document.querySelector('#login-password');
+        if (emailInput && passInput) {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setter.call(emailInput, e);
+          emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+          setter.call(passInput, p);
+          passInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }, userEmail, userPass);
+    }
+
     // Test invalid login
-    await page.type('#login-email', 'admin@jazlon.com');
-    await page.type('#login-password', 'WrongPassword123');
+    await fillLoginForm('admin@jazlon.com', 'WrongPassword123');
     await page.click('#btn-login-submit');
     await new Promise(r => setTimeout(r, 800));
     const hasErrorAlert = await page.evaluate(() => document.body.innerText.includes('Invalid email or password'));
     assert(hasErrorAlert, 'TC00b: Invalid credentials shows error notification');
 
     // Test biller login: bill@jazlon.com / admin@123
-    await page.click('#btn-demo-biller');
+    await fillLoginForm('bill@jazlon.com', 'admin@123');
     await page.click('#btn-login-submit');
     await new Promise(r => setTimeout(r, 1500));
 
@@ -168,7 +182,7 @@ async function runE2ESuite() {
     await new Promise(r => setTimeout(r, 1200));
 
     // Login as admin@jazlon.com / Jaz$lon@
-    await page.click('#btn-demo-admin');
+    await fillLoginForm('admin@jazlon.com', 'Jaz$lon@');
     await page.click('#btn-login-submit');
     await new Promise(r => setTimeout(r, 1500));
 
@@ -631,7 +645,12 @@ async function runE2ESuite() {
       const navItem = document.querySelector('button[data-page="accounts"]') || Array.from(document.querySelectorAll('.sidebar-nav button')).find(b => b.textContent.includes('Accounts'));
       if (navItem) navItem.click();
     });
-    await new Promise(r => setTimeout(r, 1200));
+    // Wait for accounts data to load from remote database
+    await page.waitForFunction(() => {
+      const text = document.body.innerText.toUpperCase();
+      return text.includes('REVENUE') && (text.includes('NET PROFIT') || text.includes('PROFIT'));
+    }, { timeout: 10000 }).catch(() => {});
+    await new Promise(r => setTimeout(r, 800));
 
     const onAccountsPage = await page.evaluate(() => document.body.innerText.toUpperCase().includes('REVENUE') || document.body.innerText.includes('Accounts'));
     assert(onAccountsPage, 'TC52: Navigation to Accounts Page succeeds');

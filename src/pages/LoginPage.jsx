@@ -5,11 +5,8 @@ import {
   Lock, 
   Eye, 
   EyeOff, 
-  ShieldCheck, 
-  FileText, 
   AlertCircle,
-  LogIn,
-  CheckCircle2
+  LogIn
 } from 'lucide-react';
 
 export default function LoginPage({ onLogin }) {
@@ -58,12 +55,6 @@ export default function LoginPage({ onLogin }) {
     }
   };
 
-  const handleFillDemo = (demoEmail, demoPassword) => {
-    setEmail(demoEmail);
-    setPassword(demoPassword);
-    setError('');
-  };
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -76,7 +67,7 @@ export default function LoginPage({ onLogin }) {
     }}>
       <div style={{
         width: '100%',
-        maxWidth: '440px',
+        maxWidth: '420px',
         backgroundColor: '#ffffff',
         borderRadius: '18px',
         boxShadow: '0 20px 45px -10px rgba(15, 23, 42, 0.15), 0 8px 16px -6px rgba(15, 23, 42, 0.08)',
@@ -87,7 +78,7 @@ export default function LoginPage({ onLogin }) {
         <div style={{
           backgroundColor: '#064e3b',
           backgroundImage: 'linear-gradient(135deg, #064e3b 0%, #047857 100%)',
-          padding: '30px 28px 24px',
+          padding: '32px 28px 26px',
           color: '#ffffff',
           textAlign: 'center'
         }}>
@@ -104,7 +95,7 @@ export default function LoginPage({ onLogin }) {
             border: '1px solid rgba(255, 255, 255, 0.25)',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
           }}>
-            <Receipt size={32} color="#ffffff" />
+            <Receipt size={30} color="#ffffff" />
           </div>
           <h1 style={{ margin: '0 0 4px', fontSize: '24px', fontWeight: 900, letterSpacing: '0.5px' }}>
             JAZLAN
@@ -115,7 +106,7 @@ export default function LoginPage({ onLogin }) {
         </div>
 
         {/* BODY FORM */}
-        <div style={{ padding: '28px' }}>
+        <div style={{ padding: '30px 28px 34px' }}>
           {error && (
             <div style={{
               display: 'flex',
@@ -148,7 +139,7 @@ export default function LoginPage({ onLogin }) {
                   id="login-email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@jazlon.com"
+                  placeholder="Enter your email"
                   required
                   autoFocus
                   style={{
@@ -223,7 +214,7 @@ export default function LoginPage({ onLogin }) {
               id="btn-login-submit"
               disabled={loading}
               style={{
-                marginTop: '6px',
+                marginTop: '8px',
                 width: '100%',
                 padding: '12px',
                 borderRadius: '9px',
@@ -253,91 +244,6 @@ export default function LoginPage({ onLogin }) {
               )}
             </button>
           </form>
-
-          {/* QUICK DEMO USERS SELECTION */}
-          <div style={{ marginTop: '26px', paddingTop: '20px', borderTop: '1px dashed #e2e8f0' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
-              Quick Fill Credentials (Demo):
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {/* ADMIN ACCOUNT PILL */}
-              <button
-                type="button"
-                id="btn-demo-admin"
-                onClick={() => handleFillDemo('admin@jazlon.com', 'Jaz$lon@')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 12px',
-                  borderRadius: '8px',
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #cbd5e1',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'background-color 0.15s ease'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-                  <ShieldCheck size={16} color="#059669" />
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>Admin Portal (All Pages)</div>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>admin@jazlon.com</div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#047857', backgroundColor: '#ecfdf5', padding: '2px 7px', borderRadius: '4px', border: '1px solid #a7f3d0' }}>
-                  Full Access
-                </span>
-              </button>
-
-              {/* BILLER ACCOUNT PILL */}
-              <button
-                type="button"
-                id="btn-demo-biller"
-                onClick={() => handleFillDemo('bill@jazlon.com', 'admin@123')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 12px',
-                  borderRadius: '8px',
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #cbd5e1',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'background-color 0.15s ease'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-                  <FileText size={16} color="#2563eb" />
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>Biller Portal (Billing & Invoices)</div>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>bill@jazlon.com</div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#1d4ed8', backgroundColor: '#eff6ff', padding: '2px 7px', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
-                  Billing & Invoices
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* CARD FOOTER */}
-        <div style={{
-          padding: '12px 28px',
-          backgroundColor: '#f8fafc',
-          borderTop: '1px solid #f1f5f9',
-          textAlign: 'center',
-          fontSize: '11px',
-          color: '#94a3b8'
-        }}>
-          Role-Based Access Control • JAZLAN Enterprise
         </div>
       </div>
     </div>
