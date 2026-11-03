@@ -43,6 +43,26 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Fast Aggregated Dashboard & Sidebar Counts API (Single ultra-fast SQL query)
+app.get('/api/stats/counts', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM bills) as invoices,
+        (SELECT COUNT(*) FROM products) as products,
+        (SELECT COUNT(*) FROM customers) as customers,
+        (SELECT COUNT(*) FROM customers WHERE pending_credit > 0) as creditCustomers,
+        (SELECT COUNT(*) FROM vehicles) as vehicles,
+        (SELECT COUNT(*) FROM employees) as employees,
+        (SELECT COUNT(*) FROM suppliers) as suppliers,
+        (SELECT COUNT(*) FROM suppliers WHERE pending_credit > 0) as creditSuppliers
+    `);
+    res.json(rows[0] || {});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Initialize MySQL database (run on local server startup; skipped on serverless cold starts)
 if (!process.env.VERCEL) {
   initDatabase().catch(console.error);
@@ -1192,22 +1212,14 @@ app.get('/api/bills/next-number', async (req, res) => {
 
 app.get('/api/bills', async (req, res) => {
   try {
-    const { search, status, from_date, to_date, exact_date, vehicle } = req.query;
+    const { search, status, from_date, to_date, exact_date, vehicle, limit } = req.query;
     let query = `
       SELECT b.*,
              COALESCE(NULLIF(b.driver_name, ''), v.driver_name, '') as driver_name,
-             COALESCE(NULLIF(b.supplier_name, ''), (
-               SELECT s.name 
-               FROM supplier_purchases sp 
-               JOIN suppliers s ON sp.supplier_id = s.id 
-               WHERE LOWER(TRIM(sp.product_name)) = LOWER(TRIM(b.product_name)) 
-               ORDER BY sp.id DESC LIMIT 1
-             ), 'Direct / Steel Mill') as supplier_name,
-             COALESCE(p.default_bought_rate, (
-               SELECT p2.default_bought_rate FROM products p2 WHERE LOWER(TRIM(p2.name)) = LOWER(TRIM(b.product_name)) LIMIT 1
-             ), b.bought_price_per_unit, 0) as catalog_bought_rate
+             COALESCE(NULLIF(b.supplier_name, ''), 'Direct / Steel Mill') as supplier_name,
+             COALESCE(p.default_bought_rate, b.bought_price_per_unit, 0) as catalog_bought_rate
       FROM bills b
-      LEFT JOIN vehicles v ON b.vehicle_id = v.id OR (b.vehicle_number IS NOT NULL AND b.vehicle_number != '' AND UPPER(REPLACE(TRIM(v.vehicle_number), ' ', '')) = UPPER(REPLACE(TRIM(b.vehicle_number), ' ', '')))
+      LEFT JOIN vehicles v ON b.vehicle_id = v.id
       LEFT JOIN products p ON b.product_id = p.id
       WHERE 1=1
     `;
@@ -1241,14 +1253,14 @@ app.get('/api/bills', async (req, res) => {
 
     if (vehicle && vehicle !== 'All') {
       const cleanVeh = vehicle.trim();
-      query += ` AND (
-        UPPER(REPLACE(TRIM(b.vehicle_number), ' ', '')) = UPPER(REPLACE(TRIM(?), ' ', ''))
-        OR b.vehicle_id = (SELECT id FROM vehicles WHERE UPPER(REPLACE(TRIM(vehicle_number), ' ', '')) = UPPER(REPLACE(TRIM(?), ' ', '')) LIMIT 1)
-      )`;
+      query += ` AND (b.vehicle_number = ? OR b.vehicle_id = (SELECT id FROM vehicles WHERE vehicle_number = ? LIMIT 1))`;
       params.push(cleanVeh, cleanVeh);
     }
 
     query += ' ORDER BY b.bill_sequence DESC, b.id DESC';
+    if (limit && Number(limit) > 0) {
+      query += ` LIMIT ${Number(limit)}`;
+    }
     const bills = await db.prepare(query).all(...params);
     res.json(bills);
   } catch (err) {
@@ -1731,69 +1743,106 @@ app.get('/api/accounts', async (req, res) => {
       generalDateParams.push(from_date, to_date);
     }
 
-    // 1. Total Sales (Revenue summation of Total Bill Amount)
-    const salesRow = await db.prepare(`
-      SELECT 
-        COALESCE(SUM(total_amount), 0) as totalRevenue,
-        COALESCE(SUM(subtotal), 0) as totalSubtotal,
-        COALESCE(SUM(cgst_amount), 0) as totalCgstOutput,
-        COALESCE(SUM(sgst_amount), 0) as totalSgstOutput,
-        COALESCE(SUM(tds_amount), 0) as totalTdsOutput,
-        COALESCE(SUM(amount_received), 0) as totalReceived,
-        COALESCE(SUM(balance_due), 0) as totalReceivables,
-        COALESCE(SUM(quantity * bought_price_per_unit), 0) as costOfSoldGoods
-      FROM bills
-      WHERE ${billFilter}
-    `).get(...billParams);
-
-    // 2. Bought Price (Sum of all stocks / bought materials: quantity * respective bought rate from product page)
+    // Run all top-level summary queries concurrently via Promise.all
     let stockBoughtQuery = 'SELECT COALESCE(SUM(stock_qty * default_bought_rate), 0) as totalStockBought FROM products';
     const stockBoughtParams = [];
     if (product && product !== 'All') {
       stockBoughtQuery += ' WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))';
       stockBoughtParams.push(product.trim());
     }
-    const stockBoughtRow = await db.prepare(stockBoughtQuery).get(...stockBoughtParams);
-    const totalStockBought = stockBoughtRow.totalStockBought;
 
-    // Supplier purchases
-    const purchasesRow = await db.prepare(`
-      SELECT 
-        COALESCE(SUM(total_amount), 0) as totalBoughtPrice,
-        COALESCE(SUM(subtotal), 0) as totalPurchasesSubtotal,
-        COALESCE(SUM(cgst_amount), 0) as totalCgstInput,
-        COALESCE(SUM(sgst_amount), 0) as totalSgstInput,
-        COALESCE(SUM(tds_amount), 0) as totalTdsInput,
-        COALESCE(SUM(paid_amount), 0) as totalPaidToSuppliers,
-        COALESCE(SUM(balance_due), 0) as totalPayablesToSuppliers
-      FROM supplier_purchases
-      WHERE ${purchaseFilter}
-    `).get(...purchaseParams);
+    const [
+      salesRow,
+      stockBoughtRow,
+      purchasesRow,
+      vehExpenseRows,
+      employeeSalariesRow,
+      allPendingCreditRow,
+      allPendingSupplierCreditRow,
+      allEmployeeCreditRow,
+      recentLedger,
+      topProducts
+    ] = await Promise.all([
+      db.prepare(`
+        SELECT 
+          COALESCE(SUM(total_amount), 0) as totalRevenue,
+          COALESCE(SUM(subtotal), 0) as totalSubtotal,
+          COALESCE(SUM(cgst_amount), 0) as totalCgstOutput,
+          COALESCE(SUM(sgst_amount), 0) as totalSgstOutput,
+          COALESCE(SUM(tds_amount), 0) as totalTdsOutput,
+          COALESCE(SUM(amount_received), 0) as totalReceived,
+          COALESCE(SUM(balance_due), 0) as totalReceivables,
+          COALESCE(SUM(quantity * bought_price_per_unit), 0) as costOfSoldGoods
+        FROM bills
+        WHERE ${billFilter}
+      `).get(...billParams),
 
-    // 3. Vehicle Expenses Breakdown
-    const vehDiesel = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM vehicle_expenses WHERE expense_type = 'Diesel' AND ${expenseFilter}
-    `).get(...generalDateParams))?.total || 0;
+      db.prepare(stockBoughtQuery).get(...stockBoughtParams),
 
-    const vehService = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM vehicle_expenses WHERE expense_type = 'Service' AND ${expenseFilter}
-    `).get(...generalDateParams))?.total || 0;
+      db.prepare(`
+        SELECT 
+          COALESCE(SUM(total_amount), 0) as totalBoughtPrice,
+          COALESCE(SUM(subtotal), 0) as totalPurchasesSubtotal,
+          COALESCE(SUM(cgst_amount), 0) as totalCgstInput,
+          COALESCE(SUM(sgst_amount), 0) as totalSgstInput,
+          COALESCE(SUM(tds_amount), 0) as totalTdsInput,
+          COALESCE(SUM(paid_amount), 0) as totalPaidToSuppliers,
+          COALESCE(SUM(balance_due), 0) as totalPayablesToSuppliers
+        FROM supplier_purchases
+        WHERE ${purchaseFilter}
+      `).get(...purchaseParams),
 
-    const vehOther = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM vehicle_expenses WHERE expense_type = 'Other' AND ${expenseFilter}
-    `).get(...generalDateParams))?.total || 0;
+      db.prepare(`
+        SELECT expense_type, COALESCE(SUM(amount), 0) as total 
+        FROM vehicle_expenses 
+        WHERE ${expenseFilter} 
+        GROUP BY expense_type
+      `).all(...generalDateParams),
 
-    // 4. Employee Salaries & Wages
-    const employeeSalaries = (await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' AND ${salaryFilter}
-    `).get(...generalDateParams))?.total || 0;
+      db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) as total 
+        FROM employee_payments 
+        WHERE payment_type != 'Credit Due' AND ${salaryFilter}
+      `).get(...generalDateParams),
 
-    // 5. Total Customer Credit Pending across all customers
-    const allPendingCredit = (await db.prepare('SELECT COALESCE(SUM(pending_credit), 0) as total FROM customers').get())?.total || 0;
-    // 6. Total Supplier Credit Pending across all suppliers
-    const allPendingSupplierCredit = (await db.prepare('SELECT COALESCE(SUM(pending_credit), 0) as total FROM suppliers').get())?.total || 0;
-    // 7. Total Employee Credit Balance pending
-    const allEmployeeCredit = (await db.prepare('SELECT COALESCE(SUM(current_credit_balance), 0) as total FROM employees').get())?.total || 0;
+      db.prepare('SELECT COALESCE(SUM(pending_credit), 0) as total FROM customers').get(),
+      db.prepare('SELECT COALESCE(SUM(pending_credit), 0) as total FROM suppliers').get(),
+      db.prepare('SELECT COALESCE(SUM(current_credit_balance), 0) as total FROM employees').get(),
+
+      db.prepare(`
+        SELECT * FROM accounts_ledger 
+        WHERE ${ledgerFilter} 
+        ORDER BY date DESC, id DESC 
+        LIMIT 50
+      `).all(...(from_date && to_date ? [from_date, to_date] : [])),
+
+      db.prepare(`
+        SELECT 
+          COALESCE(product_name, 'TMT Steel') as name,
+          COALESCE(SUM(quantity), 0) as quantity,
+          COALESCE(unit, 'Kg') as unit,
+          COALESCE(SUM(total_amount), 0) as revenue,
+          COUNT(*) as billsCount
+        FROM bills
+        WHERE ${billFilter}
+        GROUP BY product_name
+        ORDER BY revenue DESC
+        LIMIT 6
+      `).all(...billParams)
+    ]);
+
+    const totalStockBought = stockBoughtRow?.totalStockBought || 0;
+
+    // Map vehicle expenses by type
+    const vehExpMap = Object.fromEntries((vehExpenseRows || []).map(r => [r.expense_type, Number(r.total || 0)]));
+    const vehDiesel = vehExpMap['Diesel'] || 0;
+    const vehService = vehExpMap['Service'] || 0;
+    const vehOther = vehExpMap['Other'] || 0;
+
+    const employeeSalaries = employeeSalariesRow?.total || 0;
+    const allPendingCredit = allPendingCreditRow?.total || 0;
+    const allPendingSupplierCredit = allPendingSupplierCreditRow?.total || 0;
+    const allEmployeeCredit = allEmployeeCreditRow?.total || 0;
 
     // Financial calculations
     // User Specification:
@@ -1830,29 +1879,6 @@ app.get('/api/accounts', async (req, res) => {
     const netProfit = Math.round(totalRevenue - costOfGoods);
     const netProfitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
 
-    // Recent Ledger Entries
-    const recentLedger = await db.prepare(`
-      SELECT * FROM accounts_ledger 
-      WHERE ${ledgerFilter} 
-      ORDER BY date DESC, id DESC 
-      LIMIT 50
-    `).all(...(from_date && to_date ? [from_date, to_date] : []));
-
-    // 1. Highest Selling Products
-    const topProducts = await db.prepare(`
-      SELECT 
-        COALESCE(product_name, 'TMT Steel') as name,
-        COALESCE(SUM(quantity), 0) as quantity,
-        COALESCE(unit, 'Kg') as unit,
-        COALESCE(SUM(total_amount), 0) as revenue,
-        COUNT(*) as billsCount
-      FROM bills
-      WHERE ${billFilter}
-      GROUP BY product_name
-      ORDER BY revenue DESC
-      LIMIT 6
-    `).all(...billParams);
-
     // 2. Timeline Analytics (Adapted to Range: 1w, 30d, 3m, 6m, 1y, 5y, all)
     let timelineType = 'monthly';
     let timelinePoints = [];
@@ -1860,27 +1886,29 @@ app.get('/api/accounts', async (req, res) => {
     if (range === '1w' || range === '30d') {
       timelineType = 'daily';
       const numDays = range === '1w' ? 7 : 30;
-      const salesByDay = await db.prepare(`
-        SELECT 
-          date,
-          COALESCE(SUM(total_amount), 0) as revenue,
-          COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
-          COALESCE(SUM(cgst_amount), 0) as cgst,
-          COALESCE(SUM(sgst_amount), 0) as sgst,
-          COALESCE(SUM(tds_amount), 0) as tds
-        FROM bills
-        WHERE date BETWEEN ? AND ?
-        GROUP BY date
-      `).all(from_date, to_date);
+      const [salesByDay, vehByDayRows, salByDayRows] = await Promise.all([
+        db.prepare(`
+          SELECT 
+            date,
+            COALESCE(SUM(total_amount), 0) as revenue,
+            COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
+            COALESCE(SUM(cgst_amount), 0) as cgst,
+            COALESCE(SUM(sgst_amount), 0) as sgst,
+            COALESCE(SUM(tds_amount), 0) as tds
+          FROM bills
+          WHERE date BETWEEN ? AND ?
+          GROUP BY date
+        `).all(from_date, to_date),
+        db.prepare(`
+          SELECT date, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses WHERE date BETWEEN ? AND ? GROUP BY date
+        `).all(from_date, to_date),
+        db.prepare(`
+          SELECT date, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' AND date BETWEEN ? AND ? GROUP BY date
+        `).all(from_date, to_date)
+      ]);
       const salesMap = Object.fromEntries(salesByDay.map(s => [s.date, s]));
-
-      const vehByDay = Object.fromEntries((await db.prepare(`
-        SELECT date, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses WHERE date BETWEEN ? AND ? GROUP BY date
-      `).all(from_date, to_date)).map(v => [v.date, v.total]));
-
-      const salByDay = Object.fromEntries((await db.prepare(`
-        SELECT date, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' AND date BETWEEN ? AND ? GROUP BY date
-      `).all(from_date, to_date)).map(s => [s.date, s.total]));
+      const vehByDay = Object.fromEntries(vehByDayRows.map(v => [v.date, v.total]));
+      const salByDay = Object.fromEntries(salByDayRows.map(s => [s.date, s.total]));
 
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1909,26 +1937,28 @@ app.get('/api/accounts', async (req, res) => {
     } else if (range === '5y') {
       timelineType = 'yearly';
       const currentYear = new Date().getFullYear();
-      const salesByYear = await db.prepare(`
-        SELECT 
-          strftime('%Y', date) as year,
-          COALESCE(SUM(total_amount), 0) as revenue,
-          COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
-          COALESCE(SUM(cgst_amount), 0) as cgst,
-          COALESCE(SUM(sgst_amount), 0) as sgst,
-          COALESCE(SUM(tds_amount), 0) as tds
-        FROM bills
-        GROUP BY strftime('%Y', date)
-      `).all();
+      const [salesByYear, vehByYearRows, salByYearRows] = await Promise.all([
+        db.prepare(`
+          SELECT 
+            strftime('%Y', date) as year,
+            COALESCE(SUM(total_amount), 0) as revenue,
+            COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
+            COALESCE(SUM(cgst_amount), 0) as cgst,
+            COALESCE(SUM(sgst_amount), 0) as sgst,
+            COALESCE(SUM(tds_amount), 0) as tds
+          FROM bills
+          GROUP BY strftime('%Y', date)
+        `).all(),
+        db.prepare(`
+          SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses GROUP BY strftime('%Y', date)
+        `).all(),
+        db.prepare(`
+          SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' GROUP BY strftime('%Y', date)
+        `).all()
+      ]);
       const salesMap = Object.fromEntries(salesByYear.map(s => [s.year, s]));
-
-      const vehByYear = Object.fromEntries((await db.prepare(`
-        SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses GROUP BY strftime('%Y', date)
-      `).all()).map(v => [v.year, v.total]));
-
-      const salByYear = Object.fromEntries((await db.prepare(`
-        SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' GROUP BY strftime('%Y', date)
-      `).all()).map(s => [s.year, s.total]));
+      const vehByYear = Object.fromEntries(vehByYearRows.map(v => [v.year, v.total]));
+      const salByYear = Object.fromEntries(salByYearRows.map(s => [s.year, s.total]));
 
       for (let y = currentYear - 4; y <= currentYear; y++) {
         const yStr = String(y);
@@ -1953,26 +1983,28 @@ app.get('/api/accounts', async (req, res) => {
       else if (range === '1y') numMonths = 12;
       else if (range === 'all') numMonths = 6;
 
-      const salesByMonth = await db.prepare(`
-        SELECT 
-          strftime('%Y-%m', date) as month,
-          COALESCE(SUM(total_amount), 0) as revenue,
-          COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
-          COALESCE(SUM(cgst_amount), 0) as cgst,
-          COALESCE(SUM(sgst_amount), 0) as sgst,
-          COALESCE(SUM(tds_amount), 0) as tds
-        FROM bills
-        GROUP BY strftime('%Y-%m', date)
-      `).all();
+      const [salesByMonth, vehByMonthRows, salByMonthRows] = await Promise.all([
+        db.prepare(`
+          SELECT 
+            strftime('%Y-%m', date) as month,
+            COALESCE(SUM(total_amount), 0) as revenue,
+            COALESCE(SUM(quantity * bought_price_per_unit), 0) as cost,
+            COALESCE(SUM(cgst_amount), 0) as cgst,
+            COALESCE(SUM(sgst_amount), 0) as sgst,
+            COALESCE(SUM(tds_amount), 0) as tds
+          FROM bills
+          GROUP BY strftime('%Y-%m', date)
+        `).all(),
+        db.prepare(`
+          SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses GROUP BY strftime('%Y-%m', date)
+        `).all(),
+        db.prepare(`
+          SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' GROUP BY strftime('%Y-%m', date)
+        `).all()
+      ]);
       const salesMap = Object.fromEntries(salesByMonth.map(s => [s.month, s]));
-
-      const vehByMonth = Object.fromEntries((await db.prepare(`
-        SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM vehicle_expenses GROUP BY strftime('%Y-%m', date)
-      `).all()).map(v => [v.month, v.total]));
-
-      const salByMonth = Object.fromEntries((await db.prepare(`
-        SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' GROUP BY strftime('%Y-%m', date)
-      `).all()).map(s => [s.month, s.total]));
+      const vehByMonth = Object.fromEntries(vehByMonthRows.map(v => [v.month, v.total]));
+      const salByMonth = Object.fromEntries(salByMonthRows.map(s => [s.month, s.total]));
 
       const now = new Date();
       const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

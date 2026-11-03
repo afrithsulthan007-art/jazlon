@@ -1118,6 +1118,21 @@ async function runAllTests() {
     assert.strictEqual(res.data.success, true);
   });
 
+  await test('TC91: GET /api/stats/counts returns aggregated dashboard counts in a single fast call', async () => {
+    const res = await request('GET', '/api/stats/counts');
+    assert.strictEqual(res.status, 200);
+    assert(res.data.invoices !== undefined);
+    assert(res.data.products !== undefined);
+    assert(res.data.customers !== undefined);
+  });
+
+  await test('TC92: GET /api/bills?limit=5 limits result set to at most 5 records', async () => {
+    const res = await request('GET', '/api/bills?limit=5');
+    assert.strictEqual(res.status, 200);
+    assert(Array.isArray(res.data));
+    assert(res.data.length <= 5);
+  });
+
   // Clean up test data
   console.log('\n--- Cleaning up temporary test data ---');
   try {

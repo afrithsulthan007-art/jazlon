@@ -188,13 +188,13 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
         fetch('/api/products').then(r => r.json()),
         fetch('/api/vehicles').then(r => r.json()),
         fetch('/api/customers').then(r => r.json()),
-        fetch('/api/bills').then(r => r.json())
+        fetch('/api/bills?limit=5').then(r => r.json())
       ]);
 
       setProducts(prodRes || []);
       setVehicles(vehRes || []);
       setCustomers(custRes || []);
-      setRecentBills(billsRes?.slice(0, 5) || []);
+      setRecentBills(billsRes || []);
     } catch (err) {
       console.error('Error loading form data:', err);
     } finally {

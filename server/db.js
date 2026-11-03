@@ -14,11 +14,14 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   port: Number(process.env.DB_PORT) || 3306,
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: 15,
+  maxIdle: 10,
+  idleTimeout: 60000,
   queueLimit: 0,
   decimalNumbers: true,
   enableKeepAlive: true,
-  keepAliveInitialDelay: 10000
+  keepAliveInitialDelay: 0,
+  connectTimeout: 10000
 });
 
 function translateSql(sql) {

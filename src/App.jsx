@@ -51,33 +51,27 @@ export default function App() {
 
   const fetchGlobalData = async () => {
     try {
-      const [nextRes, billsRes, prodRes, custRes, vehRes, empRes, supRes] = await Promise.all([
-        fetch('/api/bills/next-number').then(r => r.json()),
-        fetch('/api/bills').then(r => r.json()),
-        fetch('/api/products').then(r => r.json()),
-        fetch('/api/customers').then(r => r.json()),
-        fetch('/api/vehicles').then(r => r.json()),
-        fetch('/api/employees').then(r => r.json()),
-        fetch('/api/suppliers').then(r => r.json())
+      const [nextRes, countsRes] = await Promise.all([
+        fetch('/api/bills/next-number').then(r => r.json()).catch(() => ({})),
+        fetch('/api/stats/counts').then(r => r.json()).catch(() => ({}))
       ]);
 
       if (nextRes && nextRes.bill_no) {
         setNextBillNo(nextRes.bill_no);
       }
 
-      const creditCustomersCount = custRes ? custRes.filter(c => (c.pending_credit || 0) > 0).length : 0;
-      const creditSuppliersCount = supRes ? supRes.filter(s => (s.pending_credit || 0) > 0).length : 0;
-
-      setCounts({
-        invoices: billsRes?.length || 0,
-        products: prodRes?.length || 0,
-        customers: custRes?.length || 0,
-        creditCustomers: creditCustomersCount,
-        vehicles: vehRes?.length || 0,
-        employees: empRes?.length || 0,
-        suppliers: supRes?.length || 0,
-        creditSuppliers: creditSuppliersCount
-      });
+      if (countsRes) {
+        setCounts({
+          invoices: Number(countsRes.invoices || 0),
+          products: Number(countsRes.products || 0),
+          customers: Number(countsRes.customers || 0),
+          creditCustomers: Number(countsRes.creditCustomers || 0),
+          vehicles: Number(countsRes.vehicles || 0),
+          employees: Number(countsRes.employees || 0),
+          suppliers: Number(countsRes.suppliers || 0),
+          creditSuppliers: Number(countsRes.creditSuppliers || 0)
+        });
+      }
     } catch (err) {
       console.warn('Sync warning:', err.message);
     }
@@ -87,7 +81,7 @@ export default function App() {
     if (user) {
       fetchGlobalData();
     }
-  }, [activePage, user]);
+  }, [user]);
 
   const handleBillCreated = () => {
     fetchGlobalData();
