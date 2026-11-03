@@ -1875,8 +1875,8 @@ app.get('/api/accounts', async (req, res) => {
     const totalTaxes = cgstDeduction + sgstDeduction + tdsDeduction;
 
     const totalDeductions = costOfGoods + cgstDeduction + sgstDeduction + tdsDeduction + vehicleCharges + totalSalaries;
-    // Net profit = Revenue - Bought (User Specification)
-    const netProfit = Math.round(totalRevenue - costOfGoods);
+    // User KPI Specification: Revenue - (Bought + CGST + SGST + TDS + Salaries in period + Vehicle/Other charges in period)
+    const netProfit = Math.round(totalRevenue - totalDeductions);
     const netProfitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
 
     // 2. Timeline Analytics (Adapted to Range: 1w, 30d, 3m, 6m, 1y, 5y, all)

@@ -865,6 +865,13 @@ async function runAllTests() {
     assert.strictEqual(Number(s.grossProfit), Math.round(Number(s.totalRevenue) - Number(s.costOfGoods)));
   });
 
+  await test('TC73b: Net profit calculation formula: Revenue - (Bought + CGST + SGST + TDS + Salaries + Vehicle/Ops)', async () => {
+    const res = await request('GET', '/api/accounts?range=all');
+    const s = res.data.summary;
+    const expectedNetProfit = Math.round(Number(s.totalRevenue) - Number(s.totalDeductions));
+    assert.strictEqual(Number(s.netProfit), expectedNetProfit);
+  });
+
   await test('TC74: Accounts workingCapital displays pending customer dues and payables', async () => {
     const res = await request('GET', '/api/accounts?range=all');
     const wc = res.data.workingCapital;

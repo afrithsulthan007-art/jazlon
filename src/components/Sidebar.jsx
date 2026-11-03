@@ -77,7 +77,7 @@ export default function Sidebar({ activePage, setActivePage, counts = {}, curren
     { id: 'accounts', label: 'Accounts & Profit', icon: PieChart, badge: 'Financials', roles: ['admin'] },
   ];
 
-  const userRole = currentUser?.role || 'admin';
+  const userRole = String(currentUser?.role || 'admin').toLowerCase();
   const menuItems = allMenuItems.filter(item => !item.roles || item.roles.includes(userRole));
 
   return (

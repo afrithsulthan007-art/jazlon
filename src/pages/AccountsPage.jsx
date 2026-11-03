@@ -437,8 +437,13 @@ export default function AccountsPage({ onAccountUpdated }) {
   const employeeSalaries = summary.employeeSalaries !== undefined ? summary.employeeSalaries : (operatingExpenses.employeeSalaries || 0);
   const totalOpExpenses = operatingExpenses.total !== undefined ? operatingExpenses.total : (vehicleCharges + employeeSalaries);
   
-  // User Formula: Revenue - Bought = Net Profit
-  const netProfit = summary.netProfit !== undefined ? summary.netProfit : Math.round(totalRevenue - costOfGoods);
+  // User KPI Formula: Revenue - (Bought + CGST + SGST + TDS + Salaries given in period + Vehicle/Other charges in period)
+  const totalDeductions = summary.totalDeductions !== undefined 
+    ? summary.totalDeductions 
+    : Math.round(costOfGoods + cgst + sgst + tds + employeeSalaries + vehicleCharges);
+  const netProfit = summary.netProfit !== undefined 
+    ? summary.netProfit 
+    : Math.round(totalRevenue - totalDeductions);
   const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
 
   // Analytics & Graph Data
@@ -751,7 +756,7 @@ export default function AccountsPage({ onAccountUpdated }) {
             ₹{cgst.toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Central Tax (8%)
+            Central Tax (9%)
           </div>
         </div>
 
@@ -765,7 +770,7 @@ export default function AccountsPage({ onAccountUpdated }) {
             ₹{sgst.toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            State Tax (8%)
+            State Tax (9%)
           </div>
         </div>
 
@@ -791,8 +796,11 @@ export default function AccountsPage({ onAccountUpdated }) {
           <div style={{ fontSize: '15px', fontWeight: 900, color: netProfit >= 0 ? '#15803d' : '#dc2626', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             ₹{netProfit.toLocaleString('en-IN')}
           </div>
-          <div style={{ fontSize: '10px', color: netProfit >= 0 ? '#166534' : '#991b1b', marginTop: '2px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Revenue − Bought
+          <div 
+            style={{ fontSize: '10px', color: netProfit >= 0 ? '#166534' : '#991b1b', marginTop: '2px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+            title="Revenue - (Bought + CGST + SGST + TDS + Salaries + Vehicle/Ops)"
+          >
+            Rev − Costs & Taxes
           </div>
         </div>
 
@@ -824,6 +832,48 @@ export default function AccountsPage({ onAccountUpdated }) {
           </div>
         </div>
 
+      </div>
+
+      {/* KPI DEDUCTIONS SUB-STRIP: TDS, SALARIES, VEHICLE CHARGES & TOTAL DEDUCTIONS */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '8px',
+        backgroundColor: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: '8px',
+        padding: '8px 14px',
+        marginBottom: '18px',
+        fontSize: '11.5px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#059669' }} />
+          <span style={{ fontWeight: 800, color: '#334155' }}>Deductions Breakdown:</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          <div>
+            <span style={{ color: '#64748b' }}>− TDS: </span>
+            <span style={{ fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>₹{tds.toLocaleString('en-IN')}</span>
+          </div>
+          <div style={{ color: '#cbd5e1' }}>•</div>
+          <div>
+            <span style={{ color: '#64748b' }}>− Salaries Given: </span>
+            <span style={{ fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>₹{employeeSalaries.toLocaleString('en-IN')}</span>
+          </div>
+          <div style={{ color: '#cbd5e1' }}>•</div>
+          <div>
+            <span style={{ color: '#64748b' }}>− Diesel & Vehicle Ops: </span>
+            <span style={{ fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>₹{vehicleCharges.toLocaleString('en-IN')}</span>
+          </div>
+          <div style={{ color: '#cbd5e1' }}>•</div>
+          <div style={{ backgroundColor: '#fef2f2', padding: '2px 8px', borderRadius: '4px', border: '1px solid #fee2e2' }}>
+            <span style={{ color: '#991b1b', fontWeight: 700 }}>Total Period Deductions: </span>
+            <span style={{ fontWeight: 800, color: '#dc2626', fontFamily: 'monospace' }}>₹{totalDeductions.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
       </div>
 
       {/* ANALYTICS SECTION ROW 1: TOP PRODUCTS (PIE CHART) & AMOUNT COLLECTED (PIE CHART) */}
