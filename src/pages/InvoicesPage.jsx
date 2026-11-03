@@ -1124,8 +1124,8 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                   <div style={{ fontSize: '14px', fontWeight: 800 }}>₹{editSubtotal.toLocaleString('en-IN')}</div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TAXABLE BASE</span>
-                  <div style={{ fontSize: '14px', fontWeight: 800 }}>₹{editBase.toLocaleString('en-IN')}</div>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>BEFORE TAX (₹)</span>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>₹{editBase.toLocaleString('en-IN')}</div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>NEW TOTAL AMOUNT</span>

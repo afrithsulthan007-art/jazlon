@@ -710,6 +710,31 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
 
             </div>
 
+            {/* BEFORE TAX (TAXABLE BASE) SUMMARY STRIP */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between', 
+              backgroundColor: '#f8fafc', 
+              border: '1px solid #e2e8f0', 
+              borderRadius: '6px', 
+              padding: '4px 10px', 
+              margin: '6px 0 0 0', 
+              fontSize: '11px' 
+            }}>
+              <span style={{ color: '#475569', fontWeight: 700 }}>
+                Before Tax (Taxable Base):
+              </span>
+              <span style={{ color: '#0f172a', fontWeight: 800, fontFamily: 'monospace', fontSize: '13px' }}>
+                ₹ {taxableBase.toLocaleString('en-IN')}
+                {rentVal > 0 && (
+                  <span style={{ color: '#0284c7', fontSize: '10px', fontWeight: 600, marginLeft: '6px' }}>
+                    (Subtotal ₹{subtotal.toLocaleString('en-IN')} + Rent ₹{rentVal.toLocaleString('en-IN')})
+                  </span>
+                )}
+              </span>
+            </div>
+
             {/* Note */}
             <div className="field-box" style={{ margin: '6px 0 0 0', padding: '2px 8px 2px 8px' }}>
               <label className="field-legend muted">Note</label>
@@ -894,6 +919,21 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
 
           <div className="settlement-grid">
             
+            {/* 0. BEFORE TAX (TAXABLE BASE) */}
+            <div className="calc-stat-box" style={{ backgroundColor: '#f8fafc', borderColor: '#cbd5e1' }}>
+              <div className="calc-stat-title" style={{ color: '#475569' }}>
+                <span>Before Tax (₹)</span>
+                {rentVal > 0 && (
+                  <span style={{ fontSize: '8.5px', color: '#0284c7', fontWeight: 700 }}>
+                    +Rent
+                  </span>
+                )}
+              </div>
+              <div className="calc-stat-display" style={{ color: '#1e293b', fontWeight: 800 }}>
+                ₹ {taxableBase.toLocaleString('en-IN')}
+              </div>
+            </div>
+
             {/* 1. TOTAL BILL AMOUNT */}
             <div className="calc-stat-box">
               <div className="calc-stat-title">
@@ -1664,8 +1704,8 @@ export default function BillingPage({ onBillCreated, nextBillNo }) {
                   <div style={{ fontSize: '14px', fontWeight: 800 }}>₹{editSubtotal.toLocaleString('en-IN')}</div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TAXABLE BASE</span>
-                  <div style={{ fontSize: '14px', fontWeight: 800 }}>₹{editBase.toLocaleString('en-IN')}</div>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>BEFORE TAX (₹)</span>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>₹{editBase.toLocaleString('en-IN')}</div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>NEW TOTAL AMOUNT</span>
