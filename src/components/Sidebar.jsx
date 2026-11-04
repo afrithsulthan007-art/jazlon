@@ -88,7 +88,7 @@ export default function Sidebar({ activePage, setActivePage, counts = {}, curren
           <Receipt size={22} />
         </div>
         <div>
-          <div className="brand-title">JAZLAN STEELS</div>
+          <div className="brand-title">JAZLON STEELS</div>
           <div className="brand-subtitle">Steels & Accounts</div>
         </div>
       </div>

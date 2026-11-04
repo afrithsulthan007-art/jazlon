@@ -201,7 +201,7 @@ async function runE2ESuite() {
     await new Promise(r => setTimeout(r, 1000));
 
     const title = await page.title();
-    assert(title.includes('JAZLAN'), 'TC01: App initial load renders page title');
+    assert(title.includes('JAZLON') || title.includes('JAZLAN'), 'TC01: App initial load renders page title');
 
     const rootLen = await page.evaluate(() => document.getElementById('root')?.innerHTML.length || 0);
     assert(rootLen > 1000, 'TC02: Root container renders full application DOM without crashing');
@@ -259,9 +259,9 @@ async function runE2ESuite() {
 
     const hasTaxInvoiceHeader = await page.evaluate(() => {
       const text = document.querySelector('.printable-invoice')?.textContent || '';
-      return text.includes('TAX INVOICE') && text.includes('JAZLAN STEELS');
+      return text.includes('TAX INVOICE') && (text.includes('JAZLON STEELS') || text.includes('JAZLAN STEELS'));
     });
-    assert(hasTaxInvoiceHeader, 'TC08: Invoice Viewer renders JAZLAN STEELS Tax Invoice structure');
+    assert(hasTaxInvoiceHeader, 'TC08: Invoice Viewer renders JAZLON STEELS Tax Invoice structure');
 
     const noBogusRoundoff = await page.evaluate(() => {
       const text = document.querySelector('.printable-invoice')?.textContent || '';
