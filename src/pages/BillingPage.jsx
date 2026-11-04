@@ -690,6 +690,7 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
               <div 
                 className={`tax-toggle-item ${tdsEnabled ? 'checked' : ''}`}
                 onClick={() => setTdsEnabled(!tdsEnabled)}
+                title={`2% TDS calculated strictly on Before Tax amount (₹${taxableBase.toLocaleString('en-IN')})`}
               >
                 <div className={`switch-track ${tdsEnabled ? 'on' : ''}`}>
                   <div className="switch-thumb" />
@@ -732,6 +733,9 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
             }}>
               <span style={{ color: '#475569', fontWeight: 700 }}>
                 Before Tax (Taxable Base):
+              </span>
+              <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginLeft: '4px' }}>
+                (Base for GST & 2% TDS)
               </span>
               <span style={{ color: '#0f172a', fontWeight: 800, fontFamily: 'monospace', fontSize: '13px' }}>
                 ₹ {taxableBase.toLocaleString('en-IN')}
@@ -1229,9 +1233,10 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
                     : Math.round(qtyInTons * Number(catalogRate || 0));
 
                   const beforeTax = Math.round((Number(b.subtotal) || 0) + (Number(b.rent_transport) || 0));
-                  const tdsVal = Number(b.tds_amount) > 0 
+                  const tdsRateVal = b.tds_rate !== undefined && b.tds_rate !== null ? Number(b.tds_rate) : 2;
+                  const tdsVal = b.tds_amount !== undefined && b.tds_amount !== null 
                     ? Number(b.tds_amount) 
-                    : Math.round((beforeTax * (Number(b.tds_rate) || 2)) / 100);
+                    : Math.round((beforeTax * tdsRateVal) / 100);
                   const cgstVal = Number(b.cgst_amount) || Math.round((beforeTax * 0.09));
                   const sgstVal = Number(b.sgst_amount) || Math.round((beforeTax * 0.09));
                   const totalAmt = Number(b.total_amount) || (beforeTax + cgstVal + sgstVal + tdsVal);
@@ -1304,7 +1309,7 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
                       </td>
 
                       {/* 9. 2% TDS */}
-                      <td style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right', color: '#ea580c', fontWeight: 700 }} className="font-mono">
+                      <td style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right', color: '#ea580c', fontWeight: 700 }} className="font-mono" title={`2% TDS on Before Tax (₹${beforeTax.toLocaleString('en-IN')}): ₹${tdsVal.toLocaleString('en-IN')}`}>
                         ₹{tdsVal.toLocaleString('en-IN')}
                       </td>
 
@@ -1706,7 +1711,7 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
                   <input type="checkbox" checked={editSgstEnabled} onChange={(e) => setEditSgstEnabled(e.target.checked)} />
                   SGST 9%: ₹{editSgst.toLocaleString('en-IN')}
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', backgroundColor: editTdsEnabled ? '#ecfdf5' : '#f8fafc' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', backgroundColor: editTdsEnabled ? '#ecfdf5' : '#f8fafc' }} title={`2% TDS calculated on Before Tax (₹${editBase.toLocaleString('en-IN')})`}>
                   <input type="checkbox" checked={editTdsEnabled} onChange={(e) => setEditTdsEnabled(e.target.checked)} />
                   2% TDS: ₹{editTds.toLocaleString('en-IN')}
                 </label>

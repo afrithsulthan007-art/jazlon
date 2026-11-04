@@ -94,22 +94,25 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
   const unit = (bill.unit || 'KGS').toUpperCase();
   const rate = Number(bill.rate) || 37.20;
 
-  // Subtotal (Before Tax)
-  const subtotal = bill.subtotal ? Number(bill.subtotal) : (quantity * rate);
+  // Subtotal & Before Tax base
+  const rentVal = Number(bill.rent_transport || 0);
+  const subtotal = bill.subtotal !== undefined && bill.subtotal !== null ? Number(bill.subtotal) : (quantity * rate);
+  const beforeTax = subtotal + rentVal;
 
-  // Taxes: CGST & SGST (both default to 9% or gst_rate/2), TDS (2%)
-  const gstRate = Number(bill.gst_rate) || 18;
+  // Taxes: CGST & SGST (both default to 9% or gst_rate/2), TDS (2% strictly on Before Tax base)
+  const gstRate = bill.gst_rate !== undefined && bill.gst_rate !== null ? Number(bill.gst_rate) : 18;
   const cgstRate = gstRate / 2;
   const sgstRate = gstRate / 2;
-  const tdsRate = 2;
+  const tdsRate = bill.tds_rate !== undefined && bill.tds_rate !== null ? Number(bill.tds_rate) : 2;
 
-  const cgstAmount = bill.cgst_amount ? Number(bill.cgst_amount) : (subtotal * cgstRate) / 100;
-  const sgstAmount = bill.sgst_amount ? Number(bill.sgst_amount) : (subtotal * sgstRate) / 100;
-  const tdsAmount = bill.tds_amount ? Number(bill.tds_amount) : (subtotal * tdsRate) / 100;
+  const cgstAmount = bill.cgst_amount !== undefined && bill.cgst_amount !== null ? Number(bill.cgst_amount) : (beforeTax * cgstRate) / 100;
+  const sgstAmount = bill.sgst_amount !== undefined && bill.sgst_amount !== null ? Number(bill.sgst_amount) : (beforeTax * sgstRate) / 100;
+  // TDS is strictly calculated on Before Tax base (never on after-tax amount)
+  const tdsAmount = bill.tds_amount !== undefined && bill.tds_amount !== null ? Number(bill.tds_amount) : (beforeTax * tdsRate) / 100;
 
   // Exact Total calculation
-  const calculatedGrandTotal = bill.total_amount ? Number(bill.total_amount) : Math.round(subtotal + cgstAmount + sgstAmount + tdsAmount);
-  const rawSum = subtotal + cgstAmount + sgstAmount + tdsAmount;
+  const calculatedGrandTotal = bill.total_amount ? Number(bill.total_amount) : Math.round(beforeTax + cgstAmount + sgstAmount + tdsAmount);
+  const rawSum = beforeTax + cgstAmount + sgstAmount + tdsAmount;
   const roundoffVal = (calculatedGrandTotal - rawSum);
   const roundoffStr = roundoffVal >= 0 ? `+ ${roundoffVal.toFixed(2)}` : `- ${Math.abs(roundoffVal).toFixed(2)}`;
 
@@ -358,7 +361,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
               <tr style={{ borderTop: '1px solid #000000' }}>
                 <td colSpan={4} style={{ borderRight: '2px solid #000000' }}></td>
                 <td colSpan={2} style={{ borderRight: '2px solid #000000', padding: '4px 8px', fontWeight: 700 }}>
-                  TDS @ {tdsRate} %
+                  TDS @ {tdsRate} % (Before Tax)
                 </td>
                 <td colSpan={2} style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 800 }}>
                   {tdsAmount.toFixed(2)}
@@ -414,10 +417,10 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
               <thead>
                 <tr style={{ borderBottom: '1px solid #000000' }}>
                   <th rowSpan={2} style={{ borderRight: '1px solid #000', padding: '4px', fontWeight: 800 }}>HSN Code</th>
-                  <th rowSpan={2} style={{ borderRight: '1px solid #000', padding: '4px', fontWeight: 800 }}>Taxable Amt</th>
+                  <th rowSpan={2} style={{ borderRight: '1px solid #000', padding: '4px', fontWeight: 800 }}>Taxable Amt<br/><span style={{ fontSize: '8px', fontWeight: 600 }}>(Before Tax)</span></th>
                   <th colSpan={2} style={{ borderRight: '1px solid #000', padding: '3px', fontWeight: 800 }}>CGST</th>
                   <th colSpan={2} style={{ borderRight: '1px solid #000', padding: '3px', fontWeight: 800 }}>SGST</th>
-                  <th colSpan={2} style={{ borderRight: '1px solid #000', padding: '3px', fontWeight: 800 }}>TDS</th>
+                  <th colSpan={2} style={{ borderRight: '1px solid #000', padding: '3px', fontWeight: 800 }}>TDS (Before Tax)</th>
                   <th rowSpan={2} style={{ padding: '4px', fontWeight: 800 }}>Grand Total</th>
                 </tr>
                 <tr style={{ borderBottom: '1px solid #000000' }}>
@@ -432,7 +435,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
               <tbody>
                 <tr style={{ borderBottom: '1px solid #000000' }}>
                   <td style={{ borderRight: '1px solid #000', padding: '4px' }}>{hsnCode}</td>
-                  <td style={{ borderRight: '1px solid #000', padding: '4px', textAlign: 'right' }}>{subtotal.toFixed(2)}</td>
+                  <td style={{ borderRight: '1px solid #000', padding: '4px', textAlign: 'right' }}>{beforeTax.toFixed(2)}</td>
                   <td style={{ borderRight: '1px solid #000', padding: '4px' }}>{cgstRate.toFixed(2)}</td>
                   <td style={{ borderRight: '1px solid #000', padding: '4px', textAlign: 'right' }}>{cgstAmount.toFixed(2)}</td>
                   <td style={{ borderRight: '1px solid #000', padding: '4px' }}>{sgstRate.toFixed(2)}</td>
@@ -444,7 +447,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
                 {/* SUMMARY ROW */}
                 <tr style={{ fontWeight: 800 }}>
                   <td style={{ borderRight: '1px solid #000', padding: '4px' }}>Total</td>
-                  <td style={{ borderRight: '1px solid #000', padding: '4px', textAlign: 'right' }}>{subtotal.toFixed(2)}</td>
+                  <td style={{ borderRight: '1px solid #000', padding: '4px', textAlign: 'right' }}>{beforeTax.toFixed(2)}</td>
                   <td style={{ borderRight: '1px solid #000', padding: '4px' }}></td>
                   <td style={{ borderRight: '1px solid #000', padding: '4px', textAlign: 'right' }}>{cgstAmount.toFixed(2)}</td>
                   <td style={{ borderRight: '1px solid #000', padding: '4px' }}></td>

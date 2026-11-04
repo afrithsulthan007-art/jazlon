@@ -789,8 +789,8 @@ export default function AccountsPage({ onAccountUpdated }) {
             ₹{tds.toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-               title={"Sales TDS: ₹" + (tdsSales || 0).toLocaleString('en-IN') + " | Purchases TDS: ₹" + (tdsPurchases || 0).toLocaleString('en-IN')}>
-            Invoice TDS Withheld (2%)
+               title={"Total 2% TDS calculated strictly on Invoice Before-Tax: ₹" + (tdsSales || 0).toLocaleString('en-IN')}>
+            Invoice TDS (2% on Before Tax)
           </div>
         </div>
 

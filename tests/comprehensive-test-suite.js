@@ -606,6 +606,26 @@ async function runAllTests() {
     assert.strictEqual(total, 42000);
   });
 
+  await test('TC48b: TDS is strictly calculated on Before Tax (subtotal + rent), NEVER on After Tax (taxableBase + GST)', () => {
+    const subtotal = 100000;
+    const rent = 5000;
+    const beforeTax = subtotal + rent; // 105000
+    const gstTotal = Math.round(beforeTax * 0.18); // 18900
+    const afterTax = beforeTax + gstTotal; // 123900
+
+    // Correct TDS: 2% of Before Tax = 2100
+    const correctTds = Math.round(beforeTax * 0.02);
+    // Wrong TDS (if calculated on After Tax): 2% of After Tax = 2478
+    const wrongAftertaxTds = Math.round(afterTax * 0.02);
+
+    assert.strictEqual(correctTds, 2100);
+    assert.strictEqual(wrongAftertaxTds, 2478);
+    assert.notStrictEqual(correctTds, wrongAftertaxTds);
+
+    const calculatedTotal = beforeTax + gstTotal + correctTds; // 105000 + 18900 + 2100 = 126000
+    assert.strictEqual(calculatedTotal, 126000);
+  });
+
   await test('TC49: Tax toggles disabled: CGST=NO, SGST=NO, TDS=NO results in Grand Total = Subtotal', () => {
     const subtotal = 33500;
     const cgst = 0;

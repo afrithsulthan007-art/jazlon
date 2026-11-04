@@ -285,9 +285,10 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
       const itemRate = Number(b.rate) || 0;
       const rent = Number(b.rent_transport) || 0;
       const beforeTax = (Number(b.subtotal) || (isKg ? (qtyKg * itemRate) : (qtyTons * itemRate))) + rent;
-      const tdsVal = Number(b.tds_amount) > 0 
+      const tdsRateVal = b.tds_rate !== undefined && b.tds_rate !== null ? Number(b.tds_rate) : 2;
+      const tdsVal = b.tds_amount !== undefined && b.tds_amount !== null 
         ? Number(b.tds_amount) 
-        : Math.round((beforeTax * (Number(b.tds_rate) || 2)) / 100);
+        : Math.round((beforeTax * tdsRateVal) / 100);
       const cgstVal = Number(b.cgst_amount) || Math.round((beforeTax * 0.09));
       const sgstVal = Number(b.sgst_amount) || Math.round((beforeTax * 0.09));
       const totalAmt = Number(b.total_amount) || (beforeTax + cgstVal + sgstVal + tdsVal);
@@ -706,7 +707,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                 <th style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right' }}>Rate (₹)</th>
                 <th style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right' }}>Bought Cost (₹)</th>
                 <th style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right' }}>Before Tax (₹)</th>
-                <th style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right' }}>2% TDS (₹)</th>
+                <th style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right' }} title="2% TDS calculated strictly on Before Tax base">2% TDS (₹)</th>
                 <th style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right' }}>CGST (₹)</th>
                 <th style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right' }}>SGST (₹)</th>
                 <th style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right' }}>Total Bill Amount (₹)</th>
@@ -743,9 +744,10 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                     : Math.round(qtyInTons * catalogRate);
 
                   const beforeTax = Math.round((Number(bill.subtotal) || 0) + (Number(bill.rent_transport) || 0));
-                  const tdsVal = Number(bill.tds_amount) > 0 
+                  const tdsRateVal = bill.tds_rate !== undefined && bill.tds_rate !== null ? Number(bill.tds_rate) : 2;
+                  const tdsVal = bill.tds_amount !== undefined && bill.tds_amount !== null 
                     ? Number(bill.tds_amount) 
-                    : Math.round((beforeTax * (Number(bill.tds_rate) || 2)) / 100);
+                    : Math.round((beforeTax * tdsRateVal) / 100);
                   const cgstVal = Number(bill.cgst_amount) || Math.round((beforeTax * 0.09));
                   const sgstVal = Number(bill.sgst_amount) || Math.round((beforeTax * 0.09));
                   const totalAmt = Number(bill.total_amount) || (beforeTax + cgstVal + sgstVal + tdsVal);
@@ -815,7 +817,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                       </td>
 
                       {/* 9. 2% TDS */}
-                      <td style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right', color: '#ea580c', fontWeight: 700 }} className="font-mono">
+                      <td style={{ whiteSpace: 'nowrap', padding: '10px 12px', textAlign: 'right', color: '#ea580c', fontWeight: 700 }} className="font-mono" title={`2% TDS on Before Tax (₹${beforeTax.toLocaleString('en-IN')}): ₹${tdsVal.toLocaleString('en-IN')}`}>
                         ₹{tdsVal.toLocaleString('en-IN')}
                       </td>
 
@@ -1111,7 +1113,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                   <input type="checkbox" checked={editSgstEnabled} onChange={(e) => setEditSgstEnabled(e.target.checked)} />
                   SGST 9%: ₹{editSgst.toLocaleString('en-IN')}
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', backgroundColor: editTdsEnabled ? '#ecfdf5' : '#f8fafc' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', backgroundColor: editTdsEnabled ? '#ecfdf5' : '#f8fafc' }} title={`2% TDS calculated strictly on Before Tax (₹${editBase.toLocaleString('en-IN')})`}>
                   <input type="checkbox" checked={editTdsEnabled} onChange={(e) => setEditTdsEnabled(e.target.checked)} />
                   2% TDS: ₹{editTds.toLocaleString('en-IN')}
                 </label>
