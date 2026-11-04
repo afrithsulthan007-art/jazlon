@@ -82,7 +82,12 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
-    const user = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanEmail);
+    let user = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanEmail);
+    if (!user && cleanEmail.includes('@jazlan.com')) {
+      user = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanEmail.replace('@jazlan.com', '@jazlon.com'));
+    } else if (!user && cleanEmail.includes('@jazlon.com')) {
+      user = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanEmail.replace('@jazlon.com', '@jazlan.com'));
+    }
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });

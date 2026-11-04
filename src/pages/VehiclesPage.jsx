@@ -416,7 +416,7 @@ export default function VehiclesPage({ onVehicleUpdated }) {
       </head>
       <body>
         <div class="header">
-          <div class="title">JAZLAN TRADERS - VEHICLE EXPENSE LEDGER</div>
+          <div class="title">JAZLAN STEELS - VEHICLE EXPENSE LEDGER</div>
           <div class="subtitle">Generated on ${dateStr}</div>
         </div>
 

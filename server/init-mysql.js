@@ -261,15 +261,15 @@ async function initMySQL(config) {
     INSERT INTO users (email, password, name, role)
     VALUES (?, ?, 'Admin', 'admin')
     ON DUPLICATE KEY UPDATE password = VALUES(password), role = 'admin', name = 'Admin'
-  `, ['admin@jazlon.com', hashPassword('Jaz$lon@')]);
+  `, ['admin@jazlan.com', hashPassword('Jaz$lan@')]);
 
   await conn.query(`
     INSERT INTO users (email, password, name, role)
     VALUES (?, ?, 'Biller', 'biller')
     ON DUPLICATE KEY UPDATE password = VALUES(password), role = 'biller', name = 'Biller'
-  `, ['bill@jazlon.com', hashPassword('admin@123')]);
+  `, ['bill@jazlan.com', hashPassword('admin@123')]);
 
-  console.log('Seeded default users: admin@jazlon.com & bill@jazlon.com');
+  console.log('Seeded default users: admin@jazlan.com & bill@jazlan.com');
 
   const [tables] = await conn.query('SHOW TABLES');
   console.log('Verified tables in DB:', tables.map(t => Object.values(t)[0]));

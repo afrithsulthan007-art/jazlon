@@ -229,13 +229,13 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
                 TAX INVOICE
               </div>
               <div style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '0.8px', color: '#000', textTransform: 'uppercase' }}>
-                JAZLON STEELS
+                JAZLAN STEELS
               </div>
               <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#000', marginTop: '2px' }}>
                 No.14, VELLALAR STREET, AYANAMBAKKAM, MADURAVOYAL CHENNAI- 600 095.
               </div>
               <div style={{ fontSize: '10px', fontWeight: 700, color: '#000', marginTop: '2px' }}>
-                GSTIN: 33EWQPS4454A1ZD || EMAIL: sales@jazlon.com
+                GSTIN: 33EWQPS4454A1ZD || EMAIL: sales@jazlan.com
               </div>
             </div>
 
@@ -423,7 +423,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
 
           {/* BANK DETAILS SECTION */}
           <div style={{ padding: '8px 10px', fontSize: '10.5px', lineHeight: '1.5' }}>
-            <div style={{ fontWeight: 700 }}>Account Name: JAZLON STEELS</div>
+            <div style={{ fontWeight: 700 }}>Account Name: JAZLAN STEELS</div>
             <div style={{ fontWeight: 700 }}>Branch Name: MOGAPPAIR WEST,CH-37.</div>
             <div style={{ fontWeight: 700 }}>Bank Name: HDFC BANK</div>
             <div style={{ fontWeight: 700 }}>Account Number: 50200066429387</div>
@@ -492,7 +492,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
 
             {/* AUTHORIZED SIGNATORY */}
             <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '65px' }}>
-              <div style={{ fontWeight: 800, fontSize: '11px' }}>For M/s. JAZLON STEELS</div>
+              <div style={{ fontWeight: 800, fontSize: '11px' }}>For M/s. JAZLAN STEELS</div>
               <div style={{ fontWeight: 800, fontSize: '11px' }}>Authorized Signatory</div>
             </div>
           </div>

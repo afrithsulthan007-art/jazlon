@@ -519,7 +519,7 @@ export default function AccountsPage({ onAccountUpdated }) {
     };
 
     const lines = [
-      'JAZLAN TRADERS - ACCOUNTS & PROFITS REPORT',
+      'JAZLAN STEELS - ACCOUNTS & PROFITS REPORT',
       `Generated On,${dateStr}`,
       `Filter Period,${getActiveFilterLabel()}`,
       `Product Filter,${productFilter}`,

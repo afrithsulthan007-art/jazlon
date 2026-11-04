@@ -413,7 +413,7 @@ export default function EmployeesPage({ onEmployeeUpdated }) {
       </head>
       <body>
         <div class="header">
-          <div class="title">JAZLAN TRADERS - SALARY & PAYMENT SLIP</div>
+          <div class="title">JAZLAN STEELS - SALARY & PAYMENT SLIP</div>
           <div class="subtitle">Generated on ${dateStr}</div>
         </div>
 
