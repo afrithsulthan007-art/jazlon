@@ -293,7 +293,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
                 <th style={{ borderRight: '2px solid #000000', padding: '6px 6px', textAlign: 'center', width: '55px', fontWeight: 800 }}>Unit</th>
                 <th style={{ borderRight: '2px solid #000000', padding: '6px 8px', textAlign: 'right', width: '75px', fontWeight: 800 }}>Rate</th>
                 <th style={{ borderRight: '2px solid #000000', padding: '6px 8px', textAlign: 'right', width: '95px', fontWeight: 800 }}>Amount</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right', width: '80px', fontWeight: 800 }}>2% TDS</th>
+                <th style={{ padding: '6px 8px', textAlign: 'right', width: '80px', fontWeight: 800 }}>{tdsRate > 0 ? `${tdsRate}% TDS` : 'TDS (0%)'}</th>
               </tr>
             </thead>
             <tbody>
@@ -361,7 +361,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
               <tr style={{ borderTop: '1px solid #000000' }}>
                 <td colSpan={4} style={{ borderRight: '2px solid #000000' }}></td>
                 <td colSpan={2} style={{ borderRight: '2px solid #000000', padding: '4px 8px', fontWeight: 700 }}>
-                  TDS @ {tdsRate} % (Before Tax)
+                  {tdsRate > 0 ? `TDS @ ${tdsRate} % (Before Tax)` : 'TDS @ 0 %'}
                 </td>
                 <td colSpan={2} style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 800 }}>
                   {tdsAmount.toFixed(2)}
