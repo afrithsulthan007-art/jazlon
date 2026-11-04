@@ -802,9 +802,9 @@ async function runAllTests() {
   });
 
   // ---------------------------------------------------------------------------
-  // SUITE 9: INVOICE PRINT & SMT TRADERS TEMPLATE (Tests 63 - 66)
+  // SUITE 9: INVOICE PRINT & JAZLAN STEELS TEMPLATE (Tests 63 - 66)
   // ---------------------------------------------------------------------------
-  console.log('\n--- SUITE 9: SMT TRADERS Tax Invoice & Print Formatting ---');
+  console.log('\n--- SUITE 9: JAZLAN STEELS Tax Invoice & Print Formatting ---');
   await test('TC63: Indian numberToWords: 40200 = "Rupees Forty Thousand Two Hundred Only"', () => {
     const words = numberToWords(40200);
     assert.strictEqual(words, 'Rupees Forty Thousand Two Hundred Only');
