@@ -263,6 +263,12 @@ async function runE2ESuite() {
     });
     assert(hasTaxInvoiceHeader, 'TC08: Invoice Viewer renders JAZLAN STEELS Tax Invoice structure');
 
+    const noBogusRoundoff = await page.evaluate(() => {
+      const text = document.querySelector('.printable-invoice')?.textContent || '';
+      return !text.includes('44896') && !text.includes('89793');
+    });
+    assert(noBogusRoundoff, 'TC08b: Invoice Viewer has zero bogus hardcoded tax or roundoff values');
+
     const hasEditInvoiceButton = await page.evaluate(() => {
       const btns = Array.from(document.querySelectorAll('.printable-invoice button'));
       return btns.some(b => b.textContent.includes('Edit Invoice'));

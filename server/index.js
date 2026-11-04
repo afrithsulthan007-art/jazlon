@@ -1362,18 +1362,28 @@ app.post('/api/bills', async (req, res) => {
     const itemRate = Number(rate);
     const subtotal = Math.round(qty * itemRate);
     const rent = Number(rent_transport || 0);
-
-    const gRate = Number(gst_rate !== undefined ? gst_rate : 18);
     const taxableAmount = subtotal + rent;
-    const gstTotal = Math.round((taxableAmount * gRate) / 100);
-    const cgst = Math.round(gstTotal / 2);
-    const sgst = Math.round(gstTotal / 2);
+
+    // Check individual CGST & SGST rates / amounts if provided
+    const cRate = req.body.cgst_rate !== undefined ? Number(req.body.cgst_rate) : (gst_rate !== undefined ? Number(gst_rate) / 2 : 9);
+    const sRate = req.body.sgst_rate !== undefined ? Number(req.body.sgst_rate) : (gst_rate !== undefined ? Number(gst_rate) / 2 : 9);
+    const gRate = req.body.gst_rate !== undefined ? Number(req.body.gst_rate) : (cRate + sRate);
+
+    const cgst = (req.body.cgst_amount !== undefined && req.body.cgst_amount !== null)
+      ? Math.round(Number(req.body.cgst_amount))
+      : Math.round((taxableAmount * cRate) / 100);
+
+    const sgst = (req.body.sgst_amount !== undefined && req.body.sgst_amount !== null)
+      ? Math.round(Number(req.body.sgst_amount))
+      : Math.round((taxableAmount * sRate) / 100);
 
     const tRate = Number(tds_rate !== undefined ? tds_rate : 0);
     // TDS is strictly calculated on Before Tax (taxableAmount = subtotal + rent), NEVER on After Tax (taxableAmount + gstTotal)
-    const tdsAmount = Math.round((taxableAmount * tRate) / 100);
+    const tdsAmount = (req.body.tds_amount !== undefined && req.body.tds_amount !== null)
+      ? Math.round(Number(req.body.tds_amount))
+      : Math.round((taxableAmount * tRate) / 100);
 
-    const calculatedTotal = Math.round(taxableAmount + gstTotal + tdsAmount);
+    const calculatedTotal = Math.round(taxableAmount + cgst + sgst + tdsAmount);
     const totalAmount = (req.body.total_amount !== undefined && req.body.total_amount !== null && !isNaN(Number(req.body.total_amount)))
       ? Math.round(Number(req.body.total_amount))
       : calculatedTotal;
@@ -1554,8 +1564,8 @@ app.put('/api/bills/:id', async (req, res) => {
     const taxableBase = updatedSubtotal + updatedRent;
 
     const effectiveGstRate = gst_rate !== undefined ? Number(gst_rate) : (Number(oldBill.gst_rate) || 18);
-    const effectiveCgst = cgst_amount !== undefined ? Number(cgst_amount) : Math.round((taxableBase * (effectiveGstRate / 2)) / 100);
-    const effectiveSgst = sgst_amount !== undefined ? Number(sgst_amount) : Math.round((taxableBase * (effectiveGstRate / 2)) / 100);
+    const effectiveCgst = cgst_amount !== undefined ? Number(cgst_amount) : (req.body.cgst_rate !== undefined ? Math.round((taxableBase * Number(req.body.cgst_rate)) / 100) : Math.round((taxableBase * (effectiveGstRate / 2)) / 100));
+    const effectiveSgst = sgst_amount !== undefined ? Number(sgst_amount) : (req.body.sgst_rate !== undefined ? Math.round((taxableBase * Number(req.body.sgst_rate)) / 100) : Math.round((taxableBase * (effectiveGstRate / 2)) / 100));
     const effectiveTdsRate = tds_rate !== undefined ? Number(tds_rate) : (oldBill.tds_rate !== undefined ? Number(oldBill.tds_rate) : 2);
     // TDS is strictly calculated on Before Tax (taxableBase = updatedSubtotal + updatedRent), NEVER on After Tax
     const effectiveTds = tds_amount !== undefined ? Number(tds_amount) : Math.round((taxableBase * effectiveTdsRate) / 100);

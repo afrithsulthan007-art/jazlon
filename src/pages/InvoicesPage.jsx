@@ -289,8 +289,12 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
       const tdsVal = b.tds_amount !== undefined && b.tds_amount !== null 
         ? Number(b.tds_amount) 
         : Math.round((beforeTax * tdsRateVal) / 100);
-      const cgstVal = Number(b.cgst_amount) || Math.round((beforeTax * 0.09));
-      const sgstVal = Number(b.sgst_amount) || Math.round((beforeTax * 0.09));
+      const cgstVal = b.cgst_amount !== undefined && b.cgst_amount !== null 
+        ? Number(b.cgst_amount) 
+        : Math.round((beforeTax * (Number(b.gst_rate || 0) / 2)) / 100);
+      const sgstVal = b.sgst_amount !== undefined && b.sgst_amount !== null 
+        ? Number(b.sgst_amount) 
+        : Math.round((beforeTax * (Number(b.gst_rate || 0) / 2)) / 100);
       const totalAmt = Number(b.total_amount) || (beforeTax + cgstVal + sgstVal + tdsVal);
 
       // Bought cost extracted from product catalog & profit: total bill amount - (tds + cgst + sgst + bought cost)
@@ -748,8 +752,12 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                   const tdsVal = bill.tds_amount !== undefined && bill.tds_amount !== null 
                     ? Number(bill.tds_amount) 
                     : Math.round((beforeTax * tdsRateVal) / 100);
-                  const cgstVal = Number(bill.cgst_amount) || Math.round((beforeTax * 0.09));
-                  const sgstVal = Number(bill.sgst_amount) || Math.round((beforeTax * 0.09));
+                  const cgstVal = bill.cgst_amount !== undefined && bill.cgst_amount !== null 
+                    ? Number(bill.cgst_amount) 
+                    : Math.round((beforeTax * (Number(bill.gst_rate || 0) / 2)) / 100);
+                  const sgstVal = bill.sgst_amount !== undefined && bill.sgst_amount !== null 
+                    ? Number(bill.sgst_amount) 
+                    : Math.round((beforeTax * (Number(bill.gst_rate || 0) / 2)) / 100);
                   const totalAmt = Number(bill.total_amount) || (beforeTax + cgstVal + sgstVal + tdsVal);
 
                   // Individual invoice profit: total bill amount - (tds + cgst + sgst + bought cost)

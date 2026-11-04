@@ -635,6 +635,44 @@ async function runAllTests() {
     assert.strictEqual(grandTotal, 33500);
   });
 
+  await test('TC49b: Asymmetric Tax Toggle: CGST=NO (0%), SGST=YES (9%), TDS=YES (2%) for ₹1,000', () => {
+    const subtotal = 1000;
+    const rent = 0;
+    const beforeTax = subtotal + rent;
+    const cgstRate = 0;
+    const sgstRate = 9;
+    const tdsRate = 2;
+
+    const cgst = Math.round((beforeTax * cgstRate) / 100);
+    const sgst = Math.round((beforeTax * sgstRate) / 100);
+    const tds = Math.round((beforeTax * tdsRate) / 100);
+    const grandTotal = beforeTax + cgst + sgst + tds;
+
+    assert.strictEqual(cgst, 0);
+    assert.strictEqual(sgst, 90);
+    assert.strictEqual(tds, 20);
+    assert.strictEqual(grandTotal, 1110);
+  });
+
+  await test('TC49c: Both GST toggles OFF: CGST=NO (0%), SGST=NO (0%), TDS=YES (2%) for ₹1,000', () => {
+    const subtotal = 1000;
+    const rent = 0;
+    const beforeTax = subtotal + rent;
+    const cgstRate = 0;
+    const sgstRate = 0;
+    const tdsRate = 2;
+
+    const cgst = Math.round((beforeTax * cgstRate) / 100);
+    const sgst = Math.round((beforeTax * sgstRate) / 100);
+    const tds = Math.round((beforeTax * tdsRate) / 100);
+    const grandTotal = beforeTax + cgst + sgst + tds;
+
+    assert.strictEqual(cgst, 0);
+    assert.strictEqual(sgst, 0);
+    assert.strictEqual(tds, 20);
+    assert.strictEqual(grandTotal, 1020);
+  });
+
   await test('TC50: POST /api/bills creates bill with Kg quantity, Rate/Kg, and exact ₹40,200 Total', async () => {
     const res = await request('POST', '/api/bills', {
       customer_name: `Test Client Enterprises ${uniqueSuffix}`,

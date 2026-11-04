@@ -90,28 +90,50 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
   // Item details
   const productName = bill.product_name || 'MS SCRAP';
   const hsnCode = bill.hsn_code || '7204';
-  const quantity = Number(bill.quantity) || 13410;
+  const quantity = bill.quantity !== undefined && bill.quantity !== null && !isNaN(Number(bill.quantity)) ? Number(bill.quantity) : 0;
   const unit = (bill.unit || 'KGS').toUpperCase();
-  const rate = Number(bill.rate) || 37.20;
+  const rate = bill.rate !== undefined && bill.rate !== null && !isNaN(Number(bill.rate)) ? Number(bill.rate) : 0;
 
   // Subtotal & Before Tax base
   const rentVal = Number(bill.rent_transport || 0);
   const subtotal = bill.subtotal !== undefined && bill.subtotal !== null ? Number(bill.subtotal) : (quantity * rate);
   const beforeTax = subtotal + rentVal;
 
-  // Taxes: CGST & SGST (both default to 9% or gst_rate/2), TDS (2% strictly on Before Tax base)
-  const gstRate = bill.gst_rate !== undefined && bill.gst_rate !== null ? Number(bill.gst_rate) : 18;
-  const cgstRate = gstRate / 2;
-  const sgstRate = gstRate / 2;
-  const tdsRate = bill.tds_rate !== undefined && bill.tds_rate !== null ? Number(bill.tds_rate) : 2;
+  // Taxes: CGST, SGST, TDS (strictly on Before Tax base)
+  const gstRate = bill.gst_rate !== undefined && bill.gst_rate !== null ? Number(bill.gst_rate) : 0;
 
-  const cgstAmount = bill.cgst_amount !== undefined && bill.cgst_amount !== null ? Number(bill.cgst_amount) : (beforeTax * cgstRate) / 100;
-  const sgstAmount = bill.sgst_amount !== undefined && bill.sgst_amount !== null ? Number(bill.sgst_amount) : (beforeTax * sgstRate) / 100;
+  // Explicit individual rates if provided, otherwise derive from amount or split gstRate
+  const cgstRate = bill.cgst_rate !== undefined && bill.cgst_rate !== null
+    ? Number(bill.cgst_rate)
+    : (bill.cgst_amount !== undefined && bill.cgst_amount !== null && beforeTax > 0
+        ? Math.round((Number(bill.cgst_amount) * 100) / beforeTax)
+        : (bill.gst_rate !== undefined ? Number(bill.gst_rate) / 2 : 0));
+
+  const sgstRate = bill.sgst_rate !== undefined && bill.sgst_rate !== null
+    ? Number(bill.sgst_rate)
+    : (bill.sgst_amount !== undefined && bill.sgst_amount !== null && beforeTax > 0
+        ? Math.round((Number(bill.sgst_amount) * 100) / beforeTax)
+        : (bill.gst_rate !== undefined ? Number(bill.gst_rate) / 2 : 0));
+
+  const tdsRate = bill.tds_rate !== undefined && bill.tds_rate !== null ? Number(bill.tds_rate) : 0;
+
+  const cgstAmount = bill.cgst_amount !== undefined && bill.cgst_amount !== null
+    ? Number(bill.cgst_amount)
+    : Math.round((beforeTax * cgstRate) / 100);
+
+  const sgstAmount = bill.sgst_amount !== undefined && bill.sgst_amount !== null
+    ? Number(bill.sgst_amount)
+    : Math.round((beforeTax * sgstRate) / 100);
+
   // TDS is strictly calculated on Before Tax base (never on after-tax amount)
-  const tdsAmount = bill.tds_amount !== undefined && bill.tds_amount !== null ? Number(bill.tds_amount) : (beforeTax * tdsRate) / 100;
+  const tdsAmount = bill.tds_amount !== undefined && bill.tds_amount !== null
+    ? Number(bill.tds_amount)
+    : Math.round((beforeTax * tdsRate) / 100);
 
   // Exact Total calculation
-  const calculatedGrandTotal = bill.total_amount ? Number(bill.total_amount) : Math.round(beforeTax + cgstAmount + sgstAmount + tdsAmount);
+  const calculatedGrandTotal = bill.total_amount !== undefined && bill.total_amount !== null
+    ? Number(bill.total_amount)
+    : Math.round(beforeTax + cgstAmount + sgstAmount + tdsAmount);
   const rawSum = beforeTax + cgstAmount + sgstAmount + tdsAmount;
   const roundoffVal = (calculatedGrandTotal - rawSum);
   const roundoffStr = roundoffVal >= 0 ? `+ ${roundoffVal.toFixed(2)}` : `- ${Math.abs(roundoffVal).toFixed(2)}`;
