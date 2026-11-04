@@ -69,8 +69,8 @@ export default function LoginPage({ onLogin }) {
             <div className="login-brand-icon-box">
               <Receipt size={28} color="#ffffff" strokeWidth={2.2} />
             </div>
-            <h1 className="login-brand-title">JAZLAN</h1>
-            <p className="login-brand-subtitle">Steels & Accounts Terminal</p>
+            <h1 className="login-brand-title">JAZLAN STEELS</h1>
+            <p className="login-brand-subtitle">Accounts & Billing Terminal</p>
           </div>
 
           {/* ERROR ALERT */}

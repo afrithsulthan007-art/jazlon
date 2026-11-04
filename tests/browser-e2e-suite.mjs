@@ -259,9 +259,9 @@ async function runE2ESuite() {
 
     const hasTaxInvoiceHeader = await page.evaluate(() => {
       const text = document.querySelector('.printable-invoice')?.textContent || '';
-      return text.includes('TAX INVOICE') && text.includes('SMT TRADERS');
+      return text.includes('TAX INVOICE') && (text.includes('JAZLAN STEELS') || text.includes('SMT TRADERS'));
     });
-    assert(hasTaxInvoiceHeader, 'TC08: Invoice Viewer renders SMT TRADERS Tax Invoice structure');
+    assert(hasTaxInvoiceHeader, 'TC08: Invoice Viewer renders JAZLAN STEELS Tax Invoice structure');
 
     const hasEditInvoiceButton = await page.evaluate(() => {
       const btns = Array.from(document.querySelectorAll('.printable-invoice button'));

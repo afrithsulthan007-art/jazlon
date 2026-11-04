@@ -75,9 +75,9 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
 
   // Calculations & Fallbacks based on exact provided format
   const billNoStr = String(bill.bill_no || '');
-  const displayInvNo = billNoStr.startsWith('SMT/') 
+  const displayInvNo = billNoStr.startsWith('JS/') 
     ? billNoStr 
-    : (billNoStr ? `SMT/26-27/${billNoStr.replace(/^[A-Za-z]+0*/, '') || billNoStr}` : 'SMT/26-27/118');
+    : (billNoStr ? `JS/26-27/${billNoStr.replace(/^[A-Za-z]+0*/, '') || billNoStr}` : 'JS/26-27/118');
 
   const displayDate = formatDate(bill.date);
   const displaySupplyDate = formatDate(bill.date_of_supply || bill.date);
@@ -196,11 +196,8 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
             {/* LOGO */}
             <div style={{ width: '85px', flexShrink: 0 }}>
               <svg width="75" height="75" viewBox="0 0 100 100" style={{ border: '2px solid #000', padding: '3px' }}>
-                <rect width="100" height="100" fill="#ffffff" />
-                {/* Stylized M */}
-                <path d="M 22 84 L 22 22 L 50 62 L 78 22 L 78 84" fill="none" stroke="#1e3a5f" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
-                {/* Stylized S interlacing */}
-                <path d="M 72 32 C 64 16, 32 16, 26 36 C 18 54, 82 50, 74 70 C 66 86, 32 86, 24 70" fill="none" stroke="#2563eb" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" />
+                <rect width="100" height="100" rx="10" fill="#047857" />
+                <text x="50" y="62" fontSize="38" fontWeight="900" fill="#ffffff" textAnchor="middle" fontFamily="sans-serif" letterSpacing="1">JS</text>
               </svg>
             </div>
 
@@ -210,13 +207,13 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
                 TAX INVOICE
               </div>
               <div style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '0.8px', color: '#000', textTransform: 'uppercase' }}>
-                SMT TRADERS
+                JAZLAN STEELS
               </div>
               <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#000', marginTop: '2px' }}>
                 No.14, VELLALAR STREET, AYANAMBAKKAM, MADURAVOYAL CHENNAI- 600 095.
               </div>
               <div style={{ fontSize: '10px', fontWeight: 700, color: '#000', marginTop: '2px' }}>
-                GSTIN: 33EWQPS4454A1ZD || EMAIL: traderssmt3@gmail.com
+                GSTIN: 33EWQPS4454A1ZD || EMAIL: sales@jazlan.com
               </div>
             </div>
 
@@ -404,7 +401,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
 
           {/* BANK DETAILS SECTION */}
           <div style={{ padding: '8px 10px', fontSize: '10.5px', lineHeight: '1.5' }}>
-            <div style={{ fontWeight: 700 }}>Account Name: SMT TRADERS</div>
+            <div style={{ fontWeight: 700 }}>Account Name: JAZLAN STEELS</div>
             <div style={{ fontWeight: 700 }}>Branch Name: MOGAPPAIR WEST,CH-37.</div>
             <div style={{ fontWeight: 700 }}>Bank Name: HDFC BANK</div>
             <div style={{ fontWeight: 700 }}>Account Number: 50200066429387</div>
@@ -473,7 +470,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
 
             {/* AUTHORIZED SIGNATORY */}
             <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '65px' }}>
-              <div style={{ fontWeight: 800, fontSize: '11px' }}>For M/s. SMT TRADERS</div>
+              <div style={{ fontWeight: 800, fontSize: '11px' }}>For M/s. JAZLAN STEELS</div>
               <div style={{ fontWeight: 800, fontSize: '11px' }}>Authorized Signatory</div>
             </div>
           </div>
