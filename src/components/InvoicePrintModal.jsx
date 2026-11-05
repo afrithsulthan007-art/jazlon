@@ -254,7 +254,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit, aut
                 No.14, VELLALAR STREET, AYANAMBAKKAM, MADURAVOYAL CHENNAI- 600 095.
               </div>
               <div style={{ fontSize: '10px', fontWeight: 700, color: '#000', marginTop: '2px' }}>
-                GSTIN: 33EWQPS4454A1ZD || EMAIL: sales@jazlan.com
+                GSTIN: 33EWQPS4454A1ZD
               </div>
             </div>
 
