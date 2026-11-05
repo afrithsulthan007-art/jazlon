@@ -127,7 +127,7 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
   const editCgst = editCgstEnabled ? Math.round(editBase * 0.09) : 0;
   const editSgst = editSgstEnabled ? Math.round(editBase * 0.09) : 0;
   const editTds = editTdsEnabled ? Math.round(editBase * 0.02) : 0;
-  const editTotal = editBase + editCgst + editSgst + editTds;
+  const editTotal = Math.round((editBase + editCgst + editSgst + editTds) / 10) * 10;
   const editDue = Math.max(0, editTotal - (Number(editPaidAmount) || 0));
 
   const handleSaveEditBill = async (e) => {
@@ -282,7 +282,8 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
   const tdsRate = tdsEnabled ? 2 : 0;
   const tdsAmount = hasProduct ? Math.round((taxableBase * tdsRate) / 100) : 0;
 
-  const calculatedTotal = hasProduct ? Math.round(taxableBase + totalGstAmount + tdsAmount) : 0;
+  const rawCalculatedTotal = taxableBase + totalGstAmount + tdsAmount;
+  const calculatedTotal = hasProduct ? Math.round(rawCalculatedTotal / 10) * 10 : 0;
   const effectiveTotal = hasProduct
     ? (isManualTotal && manualTotalAmount ? Number(manualTotalAmount) : calculatedTotal)
     : 0;

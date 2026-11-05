@@ -149,11 +149,11 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit, aut
     ? Number(bill.tds_amount)
     : Math.round((beforeTax * tdsRate) / 100);
 
-  // Exact Total calculation
-  const calculatedGrandTotal = bill.total_amount !== undefined && bill.total_amount !== null
-    ? Number(bill.total_amount)
-    : Math.round(beforeTax + cgstAmount + sgstAmount + tdsAmount);
+  // Exact Total calculation rounded to nearest 10s
   const rawSum = beforeTax + cgstAmount + sgstAmount + tdsAmount;
+  const calculatedGrandTotal = bill.total_amount !== undefined && bill.total_amount !== null && Number(bill.total_amount) > 0
+    ? (Number(bill.total_amount) % 10 === 0 ? Number(bill.total_amount) : Math.round(Number(bill.total_amount) / 10) * 10)
+    : Math.round(rawSum / 10) * 10;
   const roundoffVal = (calculatedGrandTotal - rawSum);
   const roundoffStr = roundoffVal >= 0 ? `+ ${roundoffVal.toFixed(2)}` : `- ${Math.abs(roundoffVal).toFixed(2)}`;
 

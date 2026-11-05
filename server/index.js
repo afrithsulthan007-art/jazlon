@@ -1388,9 +1388,10 @@ app.post('/api/bills', async (req, res) => {
       ? Math.round(Number(req.body.tds_amount))
       : Math.round((taxableAmount * tRate) / 100);
 
-    const calculatedTotal = Math.round(taxableAmount + cgst + sgst + tdsAmount);
+    const rawTotal = taxableAmount + cgst + sgst + tdsAmount;
+    const calculatedTotal = Math.round(rawTotal / 10) * 10;
     const totalAmount = (req.body.total_amount !== undefined && req.body.total_amount !== null && !isNaN(Number(req.body.total_amount)))
-      ? Math.round(Number(req.body.total_amount))
+      ? (Number(req.body.total_amount) % 10 === 0 ? Number(req.body.total_amount) : Math.round(Number(req.body.total_amount) / 10) * 10)
       : calculatedTotal;
     const received = Number(amount_received || 0);
     const balanceDue = Math.max(0, totalAmount - received);
@@ -1575,8 +1576,10 @@ app.put('/api/bills/:id', async (req, res) => {
     // TDS is strictly calculated on Before Tax (taxableBase = updatedSubtotal + updatedRent), NEVER on After Tax
     const effectiveTds = tds_amount !== undefined ? Number(tds_amount) : Math.round((taxableBase * effectiveTdsRate) / 100);
 
-    const computedTotal = taxableBase + effectiveCgst + effectiveSgst + effectiveTds;
-    const effectiveTotal = total_amount !== undefined && Number(total_amount) > 0 ? Number(total_amount) : computedTotal;
+    const computedTotal = Math.round((taxableBase + effectiveCgst + effectiveSgst + effectiveTds) / 10) * 10;
+    const effectiveTotal = (total_amount !== undefined && Number(total_amount) > 0)
+      ? (Number(total_amount) % 10 === 0 ? Number(total_amount) : Math.round(Number(total_amount) / 10) * 10)
+      : computedTotal;
 
     const effectivePaid = amount_received !== undefined ? Number(amount_received) : Number(oldBill.amount_received || 0);
     const effectiveBal = balance_due !== undefined ? Number(balance_due) : Math.max(0, effectiveTotal - effectivePaid);
