@@ -800,30 +800,112 @@ main {
   }
 }
 
-/* PRINT STYLES FOR INVOICE */
+/* PRINT STYLES: EXCLUSIVE TAX INVOICE PRINT ISOLATION */
 @media print {
-  body {
-    background: #ffffff !important;
-  }
-  .sidebar, .topbar, .modal-close, .no-print {
+  /* HIDE THE ENTIRE APPLICATION ROOT & ALL NON-INVOICE PAGES/COMPONENTS */
+  #root,
+  body.invoice-modal-open #root,
+  .app-layout,
+  .sidebar,
+  .topbar,
+  .main-wrapper,
+  .page-content,
+  .billing-page,
+  .billing-layout,
+  .billing-grid-top,
+  .billing-box,
+  .recent-invoices-section,
+  .invoices-page,
+  .invoices-header,
+  .invoices-stats-grid,
+  .invoices-table-card,
+  .customers-page,
+  .suppliers-page,
+  .vehicles-page,
+  .employees-page,
+  .products-page,
+  .accounts-page,
+  .no-print,
+  .modal-close,
+  .invoice-modal-close-btn {
     display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  .main-wrapper {
-    margin-left: 0 !important;
+
+  /* RESET PAGE GEOMETRY FOR STANDARD A4 INVOICE PRINTING */
+  @page {
+    size: A4 portrait;
+    margin: 6mm 8mm;
   }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* DISPLAY ONLY THE TAX INVOICE MODAL IN PRINT */
+  .printable-invoice-overlay,
   .modal-overlay {
+    display: block !important;
     position: static !important;
     background: transparent !important;
     padding: 0 !important;
-  }
-  .modal-content {
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
     box-shadow: none !important;
-    max-width: 100% !important;
-    padding: 0 !important;
-  }
-  .printable-invoice {
     border: none !important;
+  }
+
+  .printable-invoice,
+  .printable-invoice-sheet,
+  .modal-content {
+    display: block !important;
+    position: static !important;
     box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* ENSURE CRISP INVOICE BORDERS AND AVOID MID-INVOICE PAGE BREAKS */
+  .printable-tax-invoice-sheet {
+    border: 2px solid #000000 !important;
+    width: 100% !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-sizing: border-box !important;
+  }
+
+  .printable-tax-invoice-sheet table {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    width: 100% !important;
+  }
+
+  .printable-tax-invoice-sheet tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
 

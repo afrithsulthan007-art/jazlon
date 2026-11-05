@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Printer, X, Eye, Edit2 } from 'lucide-react';
 
 // Number to Words Converter for Indian Currency System
@@ -54,8 +55,26 @@ function numberToWords(num) {
   return result.trim() || 'Zero';
 }
 
-export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
+export default function InvoicePrintModal({ bill, customer, onClose, onEdit, autoPrint = false }) {
   if (!bill) return null;
+
+  useEffect(() => {
+    document.body.classList.add('invoice-modal-open');
+    return () => {
+      document.body.classList.remove('invoice-modal-open');
+    };
+  }, []);
+
+  useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => {
+        if (typeof window !== 'undefined' && !window.__E2E_TESTING__) {
+          window.print();
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   const handlePrint = () => {
     window.print();
@@ -140,10 +159,10 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
 
   const amountInWords = numberToWords(calculatedGrandTotal);
 
-  return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999, overflowY: 'auto', padding: '20px 10px' }}>
+  const modalContent = (
+    <div className="modal-overlay printable-invoice-overlay" onClick={onClose} style={{ zIndex: 9999, overflowY: 'auto', padding: '20px 10px' }}>
       <div 
-        className="modal-content printable-invoice" 
+        className="modal-content printable-invoice printable-invoice-sheet" 
         onClick={(e) => e.stopPropagation()}
         style={{ 
           maxWidth: '860px', 
@@ -204,7 +223,7 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
         {/* ============================================================== */}
         {/* EXACT TAX INVOICE STRUCTURE (REPLICATED 1:1 WITH TDS COLUMN) */}
         {/* ============================================================== */}
-        <div style={{ 
+        <div className="printable-tax-invoice-sheet" style={{ 
           border: '2px solid #000000', 
           backgroundColor: '#ffffff', 
           color: '#000000', 
@@ -502,4 +521,6 @@ export default function InvoicePrintModal({ bill, customer, onClose, onEdit }) {
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 }

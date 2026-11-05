@@ -41,6 +41,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
   // Print modal state
   const [selectedBill, setSelectedBill] = useState(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(false);
 
   // Payment modal state
   const [paymentBill, setPaymentBill] = useState(null);
@@ -350,8 +351,9 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
     URL.revokeObjectURL(url);
   };
 
-  const handleOpenPrint = (bill) => {
+  const handleOpenPrint = (bill, shouldAutoPrint = false) => {
     setSelectedBill(bill);
+    setAutoPrint(shouldAutoPrint);
     setShowPrintModal(true);
   };
 
@@ -770,7 +772,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                         <span 
                           className="font-mono" 
                           style={{ fontWeight: 800, color: '#059669', cursor: 'pointer', textDecoration: 'underline' }}
-                          onClick={() => handleOpenPrint(bill)}
+                          onClick={() => handleOpenPrint(bill, false)}
                           title="Click to Print Invoice"
                         >
                           {bill.bill_no}
@@ -905,7 +907,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                           <button 
                             type="button"
                             className="action-btn-pill view"
-                            onClick={() => handleOpenPrint(bill)}
+                            onClick={() => handleOpenPrint(bill, false)}
                             title="View Tax Invoice Details"
                           >
                             <Eye size={12} color="#0284c7" />
@@ -915,7 +917,7 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
                           <button 
                             type="button"
                             className="action-btn-pill print"
-                            onClick={() => handleOpenPrint(bill)}
+                            onClick={() => handleOpenPrint(bill, true)}
                             title="Print Tax Invoice"
                           >
                             <Printer size={12} color="#059669" />
@@ -972,8 +974,12 @@ export default function InvoicesPage({ onInvoiceUpdated }) {
         <InvoicePrintModal 
           bill={selectedBill}
           customer={{ name: selectedBill.customer_name }}
-          onClose={() => setShowPrintModal(false)}
+          onClose={() => {
+            setShowPrintModal(false);
+            setAutoPrint(false);
+          }}
           onEdit={(b) => handleOpenEdit(b)}
+          autoPrint={autoPrint}
         />
       )}
 

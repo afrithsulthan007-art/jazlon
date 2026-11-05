@@ -83,6 +83,7 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
   // Print Invoice Modal
   const [createdBill, setCreatedBill] = useState(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [autoPrintModal, setAutoPrintModal] = useState(false);
   const [recentBills, setRecentBills] = useState([]);
 
   // Edit Bill Modal State
@@ -373,6 +374,7 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
       if (!res.ok) throw new Error(data.error || 'Failed to save bill');
 
       setCreatedBill(data.bill);
+      setAutoPrintModal(false);
       setShowPrintModal(true);
       if (onBillCreated) onBillCreated(data.bill);
 
@@ -449,6 +451,7 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
     };
 
     setCreatedBill(previewData);
+    setAutoPrintModal(false);
     setShowPrintModal(true);
   };
 
@@ -1261,6 +1264,7 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
                           style={{ fontWeight: 800, color: '#059669', cursor: 'pointer', textDecoration: 'underline' }}
                           onClick={() => {
                             setCreatedBill(b);
+                            setAutoPrintModal(false);
                             setShowPrintModal(true);
                           }}
                           title="Click to Print Invoice"
@@ -1399,6 +1403,7 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
                             className="action-btn-pill view"
                             onClick={() => {
                               setCreatedBill(b);
+                              setAutoPrintModal(false);
                               setShowPrintModal(true);
                             }}
                             title="View Tax Invoice Details"
@@ -1411,6 +1416,7 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
                             className="action-btn-pill print"
                             onClick={() => {
                               setCreatedBill(b);
+                              setAutoPrintModal(true);
                               setShowPrintModal(true);
                             }}
                             title="Print Tax Invoice"
@@ -1633,8 +1639,12 @@ export default function BillingPage({ onBillCreated, nextBillNo, currentUser }) 
               gstin: customerGstin 
             }
           }
-          onClose={() => setShowPrintModal(false)}
+          onClose={() => {
+            setShowPrintModal(false);
+            setAutoPrintModal(false);
+          }}
           onEdit={(b) => handleOpenEditBill(b)}
+          autoPrint={autoPrintModal}
         />
       )}
 
