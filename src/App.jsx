@@ -7,6 +7,7 @@ import InvoicesPage from './pages/InvoicesPage';
 import ProductsPage from './pages/ProductsPage';
 import CustomersPage from './pages/CustomersPage';
 import VehiclesPage from './pages/VehiclesPage';
+import DailyExpensesPage from './pages/DailyExpensesPage';
 import EmployeesPage from './pages/EmployeesPage';
 import SuppliersPage from './pages/SuppliersPage';
 import AccountsPage from './pages/AccountsPage';
@@ -28,6 +29,7 @@ export default function App() {
     products: 0,
     customers: 0,
     vehicles: 0,
+    dailyExpenses: 0,
     employees: 0,
     suppliers: 0
   });
@@ -67,6 +69,7 @@ export default function App() {
           customers: Number(countsRes.customers || 0),
           creditCustomers: Number(countsRes.creditCustomers || 0),
           vehicles: Number(countsRes.vehicles || 0),
+          dailyExpenses: Number(countsRes.dailyExpenses || 0),
           employees: Number(countsRes.employees || 0),
           suppliers: Number(countsRes.suppliers || 0),
           creditSuppliers: Number(countsRes.creditSuppliers || 0)
@@ -149,6 +152,12 @@ export default function App() {
           {!isBiller && activePage === 'vehicles' && (
             <VehiclesPage 
               onVehicleUpdated={fetchGlobalData} 
+            />
+          )}
+
+          {!isBiller && activePage === 'daily-expenses' && (
+            <DailyExpensesPage 
+              onExpenseUpdated={fetchGlobalData} 
             />
           )}
 

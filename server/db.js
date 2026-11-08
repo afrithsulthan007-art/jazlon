@@ -28,8 +28,8 @@ function translateSql(sql) {
   if (!sql || typeof sql !== 'string') return sql;
   return sql
     .replace(/\s+COLLATE\s+NOCASE/gi, '')
-    .replace(/strftime\s*\(\s*'%Y'\s*,\s*date\s*\)/gi, "DATE_FORMAT(date, '%Y')")
-    .replace(/strftime\s*\(\s*'%Y-%m'\s*,\s*date\s*\)/gi, "DATE_FORMAT(date, '%Y-%m')")
+    .replace(/strftime\s*\(\s*'%Y'\s*,\s*([a-zA-Z0-9_.]+)\s*\)/gi, "DATE_FORMAT($1, '%Y')")
+    .replace(/strftime\s*\(\s*'%Y-%m'\s*,\s*([a-zA-Z0-9_.]+)\s*\)/gi, "DATE_FORMAT($1, '%Y-%m')")
     .replace(/MAX\s*\(\s*0\s*,\s*stock_qty\s*-\s*\?\s*\)/gi, "GREATEST(0, stock_qty - ?)");
 }
 
@@ -153,11 +153,31 @@ async function recalculateVehicle(vehicleId) {
   `, [vehicleId]);
   const other = oRows[0] ? Number(oRows[0].total) : 0;
 
+  let dailyDiesel = 0;
+  let dailyOther = 0;
+  try {
+    const [ddRows] = await pool.query(`
+      SELECT COALESCE(SUM(dei.amount), 0) as total
+      FROM daily_expense_items dei
+      JOIN daily_expenses de ON dei.daily_expense_id = de.id
+      WHERE de.vehicle_id = ? AND (dei.category = 'Diesel Expense' OR dei.category = 'Diesel')
+    `, [vehicleId]);
+    if (ddRows && ddRows[0]) dailyDiesel = Number(ddRows[0].total) || 0;
+
+    const [doRows] = await pool.query(`
+      SELECT COALESCE(SUM(dei.amount), 0) as total
+      FROM daily_expense_items dei
+      JOIN daily_expenses de ON dei.daily_expense_id = de.id
+      WHERE de.vehicle_id = ? AND (dei.category = 'Other Vehicle Expense' OR dei.category = 'Vehicle Expense')
+    `, [vehicleId]);
+    if (doRows && doRows[0]) dailyOther = Number(doRows[0].total) || 0;
+  } catch (e) {}
+
   await pool.query(`
     UPDATE vehicles
     SET total_diesel_cost = ?, total_service_cost = ?, total_other_cost = ?
     WHERE id = ?
-  `, [diesel, service, other, vehicleId]);
+  `, [diesel + dailyDiesel, service, other + dailyOther, vehicleId]);
 }
 
 async function recalculateEmployee(employeeId) {

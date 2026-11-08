@@ -440,7 +440,8 @@ export default function AccountsPage({ onAccountUpdated }) {
   const vehOther = operatingExpenses.vehicleOther || 0;
   const vehicleCharges = summary.vehicleCharges !== undefined ? summary.vehicleCharges : ((operatingExpenses.diesel || 0) + (operatingExpenses.service || 0) + (operatingExpenses.vehicleOther || 0));
   const employeeSalaries = summary.employeeSalaries !== undefined ? summary.employeeSalaries : (operatingExpenses.employeeSalaries || 0);
-  const totalOpExpenses = operatingExpenses.total !== undefined ? operatingExpenses.total : (vehicleCharges + employeeSalaries);
+  const otherDailyExpenses = summary.otherDailyExpenses || operatingExpenses.otherDailyExpenses || 0;
+  const totalOpExpenses = operatingExpenses.total !== undefined ? operatingExpenses.total : (vehicleCharges + employeeSalaries + otherDailyExpenses);
   
   // User KPI Formula: Revenue - (Bought + CGST + SGST + TDS + Salaries given in period + Vehicle/Other charges in period)
   const totalDeductions = summary.totalDeductions !== undefined 
@@ -830,7 +831,7 @@ export default function AccountsPage({ onAccountUpdated }) {
             ₹{vehicleCharges.toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-               title={"Diesel: ₹" + (vehDiesel || 0).toLocaleString('en-IN') + " | Service: ₹" + (vehService || 0).toLocaleString('en-IN') + " | Other: ₹" + (vehOther || 0).toLocaleString('en-IN')}>
+               title={"Diesel: ₹" + (vehDiesel || 0).toLocaleString('en-IN') + " | Service: ₹" + (vehService || 0).toLocaleString('en-IN') + " | Other Vehicle: ₹" + (vehOther || 0).toLocaleString('en-IN') + (otherDailyExpenses > 0 ? " | Daily Driver Misc: ₹" + otherDailyExpenses.toLocaleString('en-IN') : "")}>
             {vehicleCharges > 0 
               ? "Diesel ₹" + (vehDiesel || 0).toLocaleString('en-IN') + " · Serv ₹" + (vehService || 0).toLocaleString('en-IN')
               : "Diesel, Service & Fleet Ops"}

@@ -9,6 +9,7 @@ export default function Topbar({ activePage, setActivePage, nextBillNo, currentU
     customers: 'Customers & Credits (Directory, Dues & Ledgers)',
     'credit-customers': 'Customers & Credits (Directory, Dues & Ledgers)',
     vehicles: 'Fleet & Vehicle Operations',
+    'daily-expenses': 'Daily Expenses & Driver Advance Log',
     employees: 'Employee Management & Payroll',
     suppliers: 'Suppliers & Accounts Payable',
     accounts: 'Accounts, Taxes & Profit Calculations',

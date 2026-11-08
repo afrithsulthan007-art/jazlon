@@ -55,7 +55,8 @@ app.get('/api/stats/counts', async (req, res) => {
         (SELECT COUNT(*) FROM vehicles) as vehicles,
         (SELECT COUNT(*) FROM employees) as employees,
         (SELECT COUNT(*) FROM suppliers) as suppliers,
-        (SELECT COUNT(*) FROM suppliers WHERE pending_credit > 0) as creditSuppliers
+        (SELECT COUNT(*) FROM suppliers WHERE pending_credit > 0) as creditSuppliers,
+        (SELECT COUNT(*) FROM daily_expenses) as dailyExpenses
     `);
     res.json(rows[0] || {});
   } catch (err) {
@@ -597,6 +598,613 @@ app.delete('/api/vehicles/expenses/:expenseId', async (req, res) => {
     await db.prepare('DELETE FROM vehicle_expenses WHERE id = ?').run(expenseId);
     await db.prepare("DELETE FROM accounts_ledger WHERE reference_type = 'VehicleExpense' AND reference_id = ?").run(expenseId);
     await recalculateVehicle(exp.vehicle_id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// 3B. DRIVERS DIRECTORY & DAILY EXPENSES API
+// -----------------------------------------------------------------------------
+
+// Helper to normalize expense category
+function normalizeExpenseCategory(cat) {
+  if (!cat || typeof cat !== 'string') return 'Other';
+  const c = cat.trim().toLowerCase();
+  if (c.includes('diesel')) return 'Diesel Expense';
+  if (c.includes('vehicle') || c.includes('service') || c.includes('repair') || c.includes('toll')) return 'Other Vehicle Expense';
+  return 'Other';
+}
+
+// 1. Unified Drivers List API (from employees & vehicles)
+app.get('/api/drivers', async (req, res) => {
+  try {
+    const [empRows] = await pool.query(`
+      SELECT id, name, phone, employee_type, status
+      FROM employees 
+      ORDER BY (CASE WHEN employee_type = 'Driver' THEN 0 ELSE 1 END), name ASC
+    `);
+
+    const [vehRows] = await pool.query(`
+      SELECT id as vehicle_id, vehicle_number, model_type, driver_name, driver_phone
+      FROM vehicles
+      WHERE driver_name IS NOT NULL AND TRIM(driver_name) != ''
+    `);
+
+    const driverMap = new Map();
+
+    for (const v of vehRows) {
+      const name = (v.driver_name || '').trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (!driverMap.has(key)) {
+        driverMap.set(key, {
+          name,
+          phone: v.driver_phone || '',
+          vehicle_id: v.vehicle_id,
+          vehicle_number: v.vehicle_number,
+          model_type: v.model_type,
+          source: 'vehicle'
+        });
+      }
+    }
+
+    for (const e of empRows) {
+      const name = (e.name || '').trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      const existing = driverMap.get(key);
+      if (existing) {
+        existing.employee_id = e.id;
+        existing.employee_type = e.employee_type;
+        if (!existing.phone && e.phone) existing.phone = e.phone;
+      } else {
+        driverMap.set(key, {
+          name,
+          phone: e.phone || '',
+          employee_id: e.id,
+          employee_type: e.employee_type,
+          vehicle_id: null,
+          vehicle_number: null,
+          model_type: null,
+          source: 'employee'
+        });
+      }
+    }
+
+    res.json(Array.from(driverMap.values()));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. GET /api/daily-expenses (List & Search with Aggregates)
+app.get('/api/daily-expenses', async (req, res) => {
+  try {
+    const { from_date, to_date, driver, status, search } = req.query;
+    let whereClauses = ['1=1'];
+    const params = [];
+
+    if (from_date && to_date) {
+      whereClauses.push('expense_date BETWEEN ? AND ?');
+      params.push(from_date, to_date);
+    } else if (from_date) {
+      whereClauses.push('expense_date >= ?');
+      params.push(from_date);
+    } else if (to_date) {
+      whereClauses.push('expense_date <= ?');
+      params.push(to_date);
+    }
+
+    if (driver && driver !== 'All') {
+      whereClauses.push('(LOWER(driver_name) = LOWER(?) OR driver_id = ?)');
+      params.push(driver.trim(), Number(driver) || 0);
+    }
+
+    if (status && status !== 'All') {
+      whereClauses.push('status = ?');
+      params.push(status.trim());
+    }
+
+    if (search && search.trim()) {
+      const s = `%${search.trim()}%`;
+      whereClauses.push('(driver_name LIKE ? OR vehicle_number LIKE ? OR notes LIKE ?)');
+      params.push(s, s, s);
+    }
+
+    const whereSql = whereClauses.join(' AND ');
+
+    const expenses = await db.prepare(`
+      SELECT * FROM daily_expenses
+      WHERE ${whereSql}
+      ORDER BY expense_date DESC, id DESC
+    `).all(...params);
+
+    if (expenses.length === 0) {
+      return res.json({
+        expenses: [],
+        stats: {
+          totalCount: 0,
+          totalGiven: 0,
+          totalSpent: 0,
+          totalBalance: 0,
+          dieselSpent: 0,
+          vehicleOtherSpent: 0,
+          otherSpent: 0
+        }
+      });
+    }
+
+    const expIds = expenses.map(e => e.id);
+    const placeholders = expIds.map(() => '?').join(',');
+    const items = await db.prepare(`
+      SELECT * FROM daily_expense_items
+      WHERE daily_expense_id IN (${placeholders})
+      ORDER BY id ASC
+    `).all(...expIds);
+
+    const itemsByExpId = {};
+    for (const item of items) {
+      if (!itemsByExpId[item.daily_expense_id]) {
+        itemsByExpId[item.daily_expense_id] = [];
+      }
+      itemsByExpId[item.daily_expense_id].push(item);
+    }
+
+    let totalGiven = 0;
+    let totalSpent = 0;
+    let totalBalance = 0;
+    let dieselSpent = 0;
+    let vehicleOtherSpent = 0;
+    let otherSpent = 0;
+
+    const enrichedExpenses = expenses.map(exp => {
+      const expItems = itemsByExpId[exp.id] || [];
+      let dSum = 0;
+      let voSum = 0;
+      let oSum = 0;
+
+      for (const it of expItems) {
+        const cat = normalizeExpenseCategory(it.category);
+        const amt = Number(it.amount) || 0;
+        if (cat === 'Diesel Expense') dSum += amt;
+        else if (cat === 'Other Vehicle Expense') voSum += amt;
+        else oSum += amt;
+      }
+
+      totalGiven += Number(exp.given_amount) || 0;
+      totalSpent += Number(exp.spent_amount) || 0;
+      totalBalance += Number(exp.balance_amount) || 0;
+      dieselSpent += dSum;
+      vehicleOtherSpent += voSum;
+      otherSpent += oSum;
+
+      return {
+        ...exp,
+        items: expItems,
+        diesel_amount: dSum,
+        vehicle_other_amount: voSum,
+        other_amount: oSum
+      };
+    });
+
+    res.json({
+      expenses: enrichedExpenses,
+      stats: {
+        totalCount: enrichedExpenses.length,
+        totalGiven,
+        totalSpent,
+        totalBalance,
+        dieselSpent,
+        vehicleOtherSpent,
+        otherSpent
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. GET /api/daily-expenses/:id (Single Daily Expense with Items)
+app.get('/api/daily-expenses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const expense = await db.prepare('SELECT * FROM daily_expenses WHERE id = ?').get(id);
+    if (!expense) return res.status(404).json({ error: 'Daily expense record not found' });
+
+    const items = await db.prepare('SELECT * FROM daily_expense_items WHERE daily_expense_id = ? ORDER BY id ASC').all(id);
+
+    let diesel_amount = 0;
+    let vehicle_other_amount = 0;
+    let other_amount = 0;
+
+    for (const it of items) {
+      const cat = normalizeExpenseCategory(it.category);
+      const amt = Number(it.amount) || 0;
+      if (cat === 'Diesel Expense') diesel_amount += amt;
+      else if (cat === 'Other Vehicle Expense') vehicle_other_amount += amt;
+      else other_amount += amt;
+    }
+
+    res.json({
+      ...expense,
+      items,
+      diesel_amount,
+      vehicle_other_amount,
+      other_amount
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. POST /api/daily-expenses (Create Daily Advance & Initial Line Items)
+app.post('/api/daily-expenses', async (req, res) => {
+  try {
+    const {
+      expense_date,
+      driver_id,
+      driver_name,
+      vehicle_id,
+      vehicle_number,
+      given_amount,
+      payment_mode,
+      notes,
+      items = []
+    } = req.body;
+
+    if (!driver_name || !String(driver_name).trim()) {
+      return res.status(400).json({ error: 'Driver name is required' });
+    }
+
+    const givenAmt = Number(given_amount) || 0;
+    const dateStr = expense_date || new Date().toISOString().split('T')[0];
+    const mode = payment_mode || 'Cash';
+
+    // Calculate line items total
+    let spentAmt = 0;
+    const cleanItems = (Array.isArray(items) ? items : []).map(it => {
+      const amt = Number(it.amount) || 0;
+      spentAmt += amt;
+      return {
+        category: normalizeExpenseCategory(it.category),
+        note: (it.note || '').trim(),
+        amount: amt
+      };
+    });
+
+    const balanceAmt = givenAmt - spentAmt;
+    let status = 'Pending';
+    if (cleanItems.length === 0) {
+      status = 'Pending';
+    } else if (Math.abs(balanceAmt) < 0.001) {
+      status = 'Classified';
+    } else if (balanceAmt < 0) {
+      status = 'Over-Spent';
+    } else {
+      status = 'Partial';
+    }
+
+    // Insert Header
+    const expInfo = await db.prepare(`
+      INSERT INTO daily_expenses (
+        expense_date, driver_id, driver_name, vehicle_id, vehicle_number,
+        given_amount, spent_amount, balance_amount, status, payment_mode, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      dateStr,
+      driver_id || null,
+      driver_name.trim(),
+      vehicle_id || null,
+      vehicle_number ? vehicle_number.trim().toUpperCase() : null,
+      givenAmt,
+      spentAmt,
+      balanceAmt,
+      status,
+      mode,
+      notes ? notes.trim() : ''
+    );
+
+    const expenseId = expInfo.lastInsertRowid;
+    const insertedItems = [];
+
+    // Insert Items and Ledger Entries
+    for (const it of cleanItems) {
+      const itInfo = await db.prepare(`
+        INSERT INTO daily_expense_items (daily_expense_id, category, note, amount)
+        VALUES (?, ?, ?, ?)
+      `).run(expenseId, it.category, it.note, it.amount);
+
+      const itemId = itInfo.lastInsertRowid;
+      insertedItems.push({ id: itemId, daily_expense_id: expenseId, ...it });
+
+      await db.prepare(`
+        INSERT INTO accounts_ledger (date, type, category, reference_type, reference_id, amount, payment_mode, description)
+        VALUES (?, 'Expense', ?, 'DailyExpenseItem', ?, ?, ?, ?)
+      `).run(
+        dateStr,
+        it.category,
+        itemId,
+        it.amount,
+        mode,
+        `[Driver: ${driver_name.trim()}] ${it.note || it.category}`
+      );
+    }
+
+    if (vehicle_id) {
+      await recalculateVehicle(vehicle_id);
+    }
+
+    const createdRecord = await db.prepare('SELECT * FROM daily_expenses WHERE id = ?').get(expenseId);
+
+    res.status(201).json({
+      success: true,
+      expense: {
+        ...createdRecord,
+        items: insertedItems
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. PUT /api/daily-expenses/:id (Update Daily Expense and line items)
+app.put('/api/daily-expenses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await db.prepare('SELECT * FROM daily_expenses WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({ error: 'Daily expense record not found' });
+
+    const {
+      expense_date,
+      driver_id,
+      driver_name,
+      vehicle_id,
+      vehicle_number,
+      given_amount,
+      payment_mode,
+      notes,
+      status: customStatus,
+      items
+    } = req.body;
+
+    const dateStr = expense_date || existing.expense_date;
+    const drName = (driver_name !== undefined ? driver_name : existing.driver_name).trim();
+    const vehId = vehicle_id !== undefined ? (vehicle_id || null) : existing.vehicle_id;
+    const vehNum = vehicle_number !== undefined ? (vehicle_number ? vehicle_number.trim().toUpperCase() : null) : existing.vehicle_number;
+    const givenAmt = given_amount !== undefined ? Number(given_amount) : existing.given_amount;
+    const mode = payment_mode || existing.payment_mode || 'Cash';
+    const noteText = notes !== undefined ? (notes ? notes.trim() : '') : existing.notes;
+
+    let cleanItems = null;
+    let spentAmt = existing.spent_amount;
+
+    if (items !== undefined && Array.isArray(items)) {
+      spentAmt = 0;
+      cleanItems = items.map(it => {
+        const amt = Number(it.amount) || 0;
+        spentAmt += amt;
+        return {
+          category: normalizeExpenseCategory(it.category),
+          note: (it.note || '').trim(),
+          amount: amt
+        };
+      });
+    }
+
+    const balanceAmt = givenAmt - spentAmt;
+    let status = customStatus;
+    if (!status) {
+      if (cleanItems && cleanItems.length === 0) status = 'Pending';
+      else if (Math.abs(balanceAmt) < 0.001) status = 'Classified';
+      else if (balanceAmt < 0) status = 'Over-Spent';
+      else status = 'Partial';
+    }
+
+    await db.prepare(`
+      UPDATE daily_expenses
+      SET expense_date = ?, driver_id = ?, driver_name = ?, vehicle_id = ?, vehicle_number = ?,
+          given_amount = ?, spent_amount = ?, balance_amount = ?, status = ?, payment_mode = ?, notes = ?
+      WHERE id = ?
+    `).run(
+      dateStr,
+      driver_id !== undefined ? (driver_id || null) : existing.driver_id,
+      drName,
+      vehId,
+      vehNum,
+      givenAmt,
+      spentAmt,
+      balanceAmt,
+      status,
+      mode,
+      noteText,
+      id
+    );
+
+    // If items were provided, synchronize items and accounts_ledger
+    if (cleanItems !== null) {
+      const oldItems = await db.prepare('SELECT id FROM daily_expense_items WHERE daily_expense_id = ?').all(id);
+      for (const oldIt of oldItems) {
+        await db.prepare("DELETE FROM accounts_ledger WHERE reference_type = 'DailyExpenseItem' AND reference_id = ?").run(oldIt.id);
+      }
+      await db.prepare('DELETE FROM daily_expense_items WHERE daily_expense_id = ?').run(id);
+
+      for (const it of cleanItems) {
+        const itInfo = await db.prepare(`
+          INSERT INTO daily_expense_items (daily_expense_id, category, note, amount)
+          VALUES (?, ?, ?, ?)
+        `).run(id, it.category, it.note, it.amount);
+
+        const itemId = itInfo.lastInsertRowid;
+        await db.prepare(`
+          INSERT INTO accounts_ledger (date, type, category, reference_type, reference_id, amount, payment_mode, description)
+          VALUES (?, 'Expense', ?, 'DailyExpenseItem', ?, ?, ?, ?)
+        `).run(
+          dateStr,
+          it.category,
+          itemId,
+          it.amount,
+          mode,
+          `[Driver: ${drName}] ${it.note || it.category}`
+        );
+      }
+    }
+
+    // Recalculate vehicles if affected
+    if (existing.vehicle_id) await recalculateVehicle(existing.vehicle_id);
+    if (vehId && vehId !== existing.vehicle_id) await recalculateVehicle(vehId);
+
+    const updated = await db.prepare('SELECT * FROM daily_expenses WHERE id = ?').get(id);
+    const updatedItems = await db.prepare('SELECT * FROM daily_expense_items WHERE daily_expense_id = ? ORDER BY id ASC').all(id);
+
+    res.json({
+      success: true,
+      expense: {
+        ...updated,
+        items: updatedItems
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. POST /api/daily-expenses/:id/items (Classify / Append Expense Items)
+app.post('/api/daily-expenses/:id/items', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const expense = await db.prepare('SELECT * FROM daily_expenses WHERE id = ?').get(id);
+    if (!expense) return res.status(404).json({ error: 'Daily expense record not found' });
+
+    const rawItems = Array.isArray(req.body.items) ? req.body.items : [req.body];
+    const newItems = rawItems
+      .filter(it => it && (Number(it.amount) > 0 || it.note))
+      .map(it => ({
+        category: normalizeExpenseCategory(it.category),
+        note: (it.note || '').trim(),
+        amount: Number(it.amount) || 0
+      }));
+
+    if (newItems.length === 0) {
+      return res.status(400).json({ error: 'At least one valid expense item is required' });
+    }
+
+    for (const it of newItems) {
+      const info = await db.prepare(`
+        INSERT INTO daily_expense_items (daily_expense_id, category, note, amount)
+        VALUES (?, ?, ?, ?)
+      `).run(id, it.category, it.note, it.amount);
+
+      const itemId = info.lastInsertRowid;
+      await db.prepare(`
+        INSERT INTO accounts_ledger (date, type, category, reference_type, reference_id, amount, payment_mode, description)
+        VALUES (?, 'Expense', ?, 'DailyExpenseItem', ?, ?, ?, ?)
+      `).run(
+        expense.expense_date,
+        it.category,
+        itemId,
+        it.amount,
+        expense.payment_mode || 'Cash',
+        `[Driver: ${expense.driver_name}] ${it.note || it.category}`
+      );
+    }
+
+    // Recalculate totals
+    const [sumRow] = await pool.query(`
+      SELECT COALESCE(SUM(amount), 0) as totalSpent FROM daily_expense_items WHERE daily_expense_id = ?
+    `, [id]);
+    const totalSpent = Number(sumRow[0]?.totalSpent || 0);
+    const balance = expense.given_amount - totalSpent;
+
+    let status = 'Partial';
+    if (Math.abs(balance) < 0.001) status = 'Classified';
+    else if (balance < 0) status = 'Over-Spent';
+
+    await db.prepare(`
+      UPDATE daily_expenses
+      SET spent_amount = ?, balance_amount = ?, status = ?
+      WHERE id = ?
+    `).run(totalSpent, balance, status, id);
+
+    if (expense.vehicle_id) {
+      await recalculateVehicle(expense.vehicle_id);
+    }
+
+    const updated = await db.prepare('SELECT * FROM daily_expenses WHERE id = ?').get(id);
+    const allItems = await db.prepare('SELECT * FROM daily_expense_items WHERE daily_expense_id = ? ORDER BY id ASC').all(id);
+
+    res.json({
+      success: true,
+      expense: {
+        ...updated,
+        items: allItems
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. DELETE /api/daily-expenses/:id/items/:itemId (Remove specific expense item)
+app.delete('/api/daily-expenses/:id/items/:itemId', async (req, res) => {
+  try {
+    const { id, itemId } = req.params;
+    const expense = await db.prepare('SELECT * FROM daily_expenses WHERE id = ?').get(id);
+    if (!expense) return res.status(404).json({ error: 'Daily expense record not found' });
+
+    await db.prepare("DELETE FROM accounts_ledger WHERE reference_type = 'DailyExpenseItem' AND reference_id = ?").run(itemId);
+    await db.prepare('DELETE FROM daily_expense_items WHERE id = ? AND daily_expense_id = ?').run(itemId, id);
+
+    const [sumRow] = await pool.query(`
+      SELECT COALESCE(SUM(amount), 0) as totalSpent FROM daily_expense_items WHERE daily_expense_id = ?
+    `, [id]);
+    const totalSpent = Number(sumRow[0]?.totalSpent || 0);
+    const balance = expense.given_amount - totalSpent;
+
+    let status = 'Pending';
+    if (totalSpent > 0) {
+      if (Math.abs(balance) < 0.001) status = 'Classified';
+      else if (balance < 0) status = 'Over-Spent';
+      else status = 'Partial';
+    }
+
+    await db.prepare(`
+      UPDATE daily_expenses
+      SET spent_amount = ?, balance_amount = ?, status = ?
+      WHERE id = ?
+    `).run(totalSpent, balance, status, id);
+
+    if (expense.vehicle_id) {
+      await recalculateVehicle(expense.vehicle_id);
+    }
+
+    res.json({ success: true, spent_amount: totalSpent, balance_amount: balance, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. DELETE /api/daily-expenses/:id (Delete full daily expense record)
+app.delete('/api/daily-expenses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const expense = await db.prepare('SELECT * FROM daily_expenses WHERE id = ?').get(id);
+    if (!expense) return res.status(404).json({ error: 'Daily expense record not found' });
+
+    const items = await db.prepare('SELECT id FROM daily_expense_items WHERE daily_expense_id = ?').all(id);
+    for (const it of items) {
+      await db.prepare("DELETE FROM accounts_ledger WHERE reference_type = 'DailyExpenseItem' AND reference_id = ?").run(it.id);
+    }
+
+    await db.prepare('DELETE FROM daily_expense_items WHERE daily_expense_id = ?').run(id);
+    await db.prepare('DELETE FROM daily_expenses WHERE id = ?').run(id);
+
+    if (expense.vehicle_id) {
+      await recalculateVehicle(expense.vehicle_id);
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1754,12 +2362,14 @@ app.get('/api/accounts', async (req, res) => {
     let expenseFilter = '1=1';
     let salaryFilter = '1=1';
     let ledgerFilter = '1=1';
+    let dailyFilter = '1=1';
     const generalDateParams = [];
 
     if (from_date && to_date) {
       expenseFilter = 'date BETWEEN ? AND ?';
       salaryFilter = 'date BETWEEN ? AND ?';
       ledgerFilter = 'date BETWEEN ? AND ?';
+      dailyFilter = 'de.expense_date BETWEEN ? AND ?';
       generalDateParams.push(from_date, to_date);
     }
 
@@ -1777,6 +2387,7 @@ app.get('/api/accounts', async (req, res) => {
       purchasesRow,
       vehExpenseRows,
       employeeSalariesRow,
+      dailyExpenseRows,
       allPendingCreditRow,
       allPendingSupplierCreditRow,
       allEmployeeCreditRow,
@@ -1825,6 +2436,14 @@ app.get('/api/accounts', async (req, res) => {
         WHERE payment_type != 'Credit Due' AND ${salaryFilter}
       `).get(...generalDateParams),
 
+      db.prepare(`
+        SELECT dei.category, COALESCE(SUM(dei.amount), 0) as total 
+        FROM daily_expense_items dei
+        JOIN daily_expenses de ON dei.daily_expense_id = de.id
+        WHERE ${dailyFilter} 
+        GROUP BY dei.category
+      `).all(...generalDateParams),
+
       db.prepare('SELECT COALESCE(SUM(pending_credit), 0) as total FROM customers').get(),
       db.prepare('SELECT COALESCE(SUM(pending_credit), 0) as total FROM suppliers').get(),
       db.prepare('SELECT COALESCE(SUM(current_credit_balance), 0) as total FROM employees').get(),
@@ -1859,6 +2478,12 @@ app.get('/api/accounts', async (req, res) => {
     const vehService = vehExpMap['Service'] || 0;
     const vehOther = vehExpMap['Other'] || 0;
 
+    // Map daily expenses by category
+    const dailyExpMap = Object.fromEntries((dailyExpenseRows || []).map(r => [r.category, Number(r.total || 0)]));
+    const dailyDiesel = (dailyExpMap['Diesel Expense'] || 0) + (dailyExpMap['Diesel'] || 0);
+    const dailyVehicleOther = (dailyExpMap['Other Vehicle Expense'] || 0) + (dailyExpMap['Vehicle Expense'] || 0);
+    const dailyOther = (dailyExpMap['Other'] || 0);
+
     const employeeSalaries = employeeSalariesRow?.total || 0;
     const allPendingCredit = allPendingCreditRow?.total || 0;
     const allPendingSupplierCredit = allPendingSupplierCreditRow?.total || 0;
@@ -1876,10 +2501,14 @@ app.get('/api/accounts', async (req, res) => {
     const costOfGoods = salesRow.costOfSoldGoods; // Sum of (quantity * bought_price_per_unit) from all invoices
     const grossProfit = Math.round(totalRevenue - costOfGoods);
 
-    // Vehicle Charges (Diesel, Maintenance & Service, Other vehicle expenses)
-    const vehicleCharges = vehDiesel + vehService + vehOther;
+    // Vehicle Charges (Diesel, Maintenance & Service, Other vehicle expenses) - Combines Fleet + Driver Daily Logs
+    const combinedDiesel = vehDiesel + dailyDiesel;
+    const combinedService = vehService;
+    const combinedVehicleOther = vehOther + dailyVehicleOther;
+    const vehicleCharges = combinedDiesel + combinedService + combinedVehicleOther;
+    const otherDailyExpenses = dailyOther;
     const totalSalaries = employeeSalaries;
-    const totalOperatingExpenses = vehicleCharges + totalSalaries;
+    const totalOperatingExpenses = vehicleCharges + totalSalaries + otherDailyExpenses;
 
     // Taxes Breakdown from invoices
     const cgstOutput = salesRow.totalCgstOutput;
@@ -1897,8 +2526,8 @@ app.get('/api/accounts', async (req, res) => {
     const tdsDeduction = totalTds;
     const totalTaxes = cgstDeduction + sgstDeduction + tdsDeduction;
 
-    const totalDeductions = costOfGoods + cgstDeduction + sgstDeduction + tdsDeduction + vehicleCharges + totalSalaries;
-    // User KPI Specification: Revenue - (Bought + CGST + SGST + TDS + Salaries in period + Vehicle/Other charges in period)
+    const totalDeductions = costOfGoods + cgstDeduction + sgstDeduction + tdsDeduction + vehicleCharges + totalSalaries + otherDailyExpenses;
+    // User KPI Specification: Revenue - (Bought + CGST + SGST + TDS + Salaries in period + Vehicle/Other charges in period + Daily Expenses)
     const netProfit = Math.round(totalRevenue - totalDeductions);
     const netProfitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
 
@@ -1909,7 +2538,7 @@ app.get('/api/accounts', async (req, res) => {
     if (range === '1w' || range === '30d') {
       timelineType = 'daily';
       const numDays = range === '1w' ? 7 : 30;
-      const [salesByDay, vehByDayRows, salByDayRows] = await Promise.all([
+      const [salesByDay, vehByDayRows, salByDayRows, dailyExpByDayRows] = await Promise.all([
         db.prepare(`
           SELECT 
             date,
@@ -1927,11 +2556,19 @@ app.get('/api/accounts', async (req, res) => {
         `).all(from_date, to_date),
         db.prepare(`
           SELECT date, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' AND date BETWEEN ? AND ? GROUP BY date
+        `).all(from_date, to_date),
+        db.prepare(`
+          SELECT de.expense_date as date, COALESCE(SUM(dei.amount), 0) as total
+          FROM daily_expense_items dei
+          JOIN daily_expenses de ON dei.daily_expense_id = de.id
+          WHERE de.expense_date BETWEEN ? AND ?
+          GROUP BY de.expense_date
         `).all(from_date, to_date)
       ]);
       const salesMap = Object.fromEntries(salesByDay.map(s => [s.date, s]));
       const vehByDay = Object.fromEntries(vehByDayRows.map(v => [v.date, v.total]));
       const salByDay = Object.fromEntries(salByDayRows.map(s => [s.date, s.total]));
+      const dailyByDay = Object.fromEntries(dailyExpByDayRows.map(d => [d.date, d.total]));
 
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1943,7 +2580,8 @@ app.get('/api/accounts', async (req, res) => {
         const s = salesMap[dayStr] || { revenue: 0, cost: 0, cgst: 0, sgst: 0, tds: 0 };
         const vExp = vehByDay[dayStr] || 0;
         const sExp = salByDay[dayStr] || 0;
-        const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp;
+        const dExp = dailyByDay[dayStr] || 0;
+        const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp + dExp;
         const profit = Math.round(s.revenue - deductions);
 
         const label = numDays === 7
@@ -1960,7 +2598,7 @@ app.get('/api/accounts', async (req, res) => {
     } else if (range === '5y') {
       timelineType = 'yearly';
       const currentYear = new Date().getFullYear();
-      const [salesByYear, vehByYearRows, salByYearRows] = await Promise.all([
+      const [salesByYear, vehByYearRows, salByYearRows, dailyExpByYearRows] = await Promise.all([
         db.prepare(`
           SELECT 
             strftime('%Y', date) as year,
@@ -1977,18 +2615,26 @@ app.get('/api/accounts', async (req, res) => {
         `).all(),
         db.prepare(`
           SELECT strftime('%Y', date) as year, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' GROUP BY strftime('%Y', date)
+        `).all(),
+        db.prepare(`
+          SELECT strftime('%Y', de.expense_date) as year, COALESCE(SUM(dei.amount), 0) as total
+          FROM daily_expense_items dei
+          JOIN daily_expenses de ON dei.daily_expense_id = de.id
+          GROUP BY strftime('%Y', de.expense_date)
         `).all()
       ]);
       const salesMap = Object.fromEntries(salesByYear.map(s => [s.year, s]));
       const vehByYear = Object.fromEntries(vehByYearRows.map(v => [v.year, v.total]));
       const salByYear = Object.fromEntries(salByYearRows.map(s => [s.year, s.total]));
+      const dailyByYear = Object.fromEntries(dailyExpByYearRows.map(d => [d.year, d.total]));
 
       for (let y = currentYear - 4; y <= currentYear; y++) {
         const yStr = String(y);
         const s = salesMap[yStr] || { revenue: 0, cost: 0, cgst: 0, sgst: 0, tds: 0 };
         const vExp = vehByYear[yStr] || 0;
         const sExp = salByYear[yStr] || 0;
-        const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp;
+        const dExp = dailyByYear[yStr] || 0;
+        const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp + dExp;
         const profit = Math.round(s.revenue - deductions);
 
         timelinePoints.push({
@@ -2006,7 +2652,7 @@ app.get('/api/accounts', async (req, res) => {
       else if (range === '1y') numMonths = 12;
       else if (range === 'all') numMonths = 6;
 
-      const [salesByMonth, vehByMonthRows, salByMonthRows] = await Promise.all([
+      const [salesByMonth, vehByMonthRows, salByMonthRows, dailyExpByMonthRows] = await Promise.all([
         db.prepare(`
           SELECT 
             strftime('%Y-%m', date) as month,
@@ -2023,11 +2669,18 @@ app.get('/api/accounts', async (req, res) => {
         `).all(),
         db.prepare(`
           SELECT strftime('%Y-%m', date) as month, COALESCE(SUM(amount), 0) as total FROM employee_payments WHERE payment_type != 'Credit Due' GROUP BY strftime('%Y-%m', date)
+        `).all(),
+        db.prepare(`
+          SELECT strftime('%Y-%m', de.expense_date) as month, COALESCE(SUM(dei.amount), 0) as total
+          FROM daily_expense_items dei
+          JOIN daily_expenses de ON dei.daily_expense_id = de.id
+          GROUP BY strftime('%Y-%m', de.expense_date)
         `).all()
       ]);
       const salesMap = Object.fromEntries(salesByMonth.map(s => [s.month, s]));
       const vehByMonth = Object.fromEntries(vehByMonthRows.map(v => [v.month, v.total]));
       const salByMonth = Object.fromEntries(salByMonthRows.map(s => [s.month, s.total]));
+      const dailyByMonth = Object.fromEntries(dailyExpByMonthRows.map(d => [d.month, d.total]));
 
       const now = new Date();
       const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -2038,7 +2691,8 @@ app.get('/api/accounts', async (req, res) => {
         const s = salesMap[mKey] || { revenue: 0, cost: 0, cgst: 0, sgst: 0, tds: 0 };
         const vExp = vehByMonth[mKey] || 0;
         const sExp = salByMonth[mKey] || 0;
-        const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp;
+        const dExp = dailyByMonth[mKey] || 0;
+        const deductions = s.cost + s.cgst + s.sgst + s.tds + vExp + sExp + dExp;
         const profit = Math.round(s.revenue - deductions);
 
         timelinePoints.push({
@@ -2119,11 +2773,17 @@ app.get('/api/accounts', async (req, res) => {
         totalTaxes,
         vehicleCharges,
         employeeSalaries: totalSalaries,
+        otherDailyExpenses,
         totalDeductions,
         operatingExpenses: {
-          diesel: vehDiesel,
-          service: vehService,
-          vehicleOther: vehOther,
+          diesel: combinedDiesel,
+          service: combinedService,
+          vehicleOther: combinedVehicleOther,
+          fleetDiesel: vehDiesel,
+          dailyDiesel,
+          fleetOther: vehOther,
+          dailyVehicleOther,
+          otherDailyExpenses,
           employeeSalaries: totalSalaries,
           total: totalOperatingExpenses
         },

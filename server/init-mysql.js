@@ -222,6 +222,33 @@ const schema = [
     role VARCHAR(50) NOT NULL DEFAULT 'biller',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS daily_expenses (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    expense_date VARCHAR(20) NOT NULL,
+    driver_id INT,
+    driver_name VARCHAR(150) NOT NULL,
+    vehicle_id INT,
+    vehicle_number VARCHAR(100),
+    given_amount DOUBLE NOT NULL DEFAULT 0,
+    spent_amount DOUBLE DEFAULT 0,
+    balance_amount DOUBLE DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'Pending',
+    payment_mode VARCHAR(50) DEFAULT 'Cash',
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS daily_expense_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    daily_expense_id INT NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    note TEXT,
+    amount DOUBLE NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (daily_expense_id) REFERENCES daily_expenses(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
 ];
 
@@ -232,7 +259,11 @@ const indexes = [
   'CREATE INDEX idx_veh_exp ON vehicle_expenses(vehicle_id)',
   'CREATE INDEX idx_emp_pay ON employee_payments(employee_id)',
   'CREATE INDEX idx_sup_pur ON supplier_purchases(supplier_id)',
-  'CREATE INDEX idx_cust_adj ON customer_adjustments(customer_id)'
+  'CREATE INDEX idx_cust_adj ON customer_adjustments(customer_id)',
+  'CREATE INDEX idx_daily_exp_date ON daily_expenses(expense_date)',
+  'CREATE INDEX idx_daily_exp_driver ON daily_expenses(driver_name)',
+  'CREATE INDEX idx_daily_exp_items_parent ON daily_expense_items(daily_expense_id)',
+  'CREATE INDEX idx_daily_exp_items_cat ON daily_expense_items(category)'
 ];
 
 async function initMySQL(config) {
